@@ -26,7 +26,8 @@ Evidence grades:
 | Luminance, night (moonless) | 1.6e-5 | — | cd/m² | B | same as day |
 | S cone peak | 430 | — | nm | B | Melin 2016 |
 | L cone peak | 545 | 539, 545 | nm | B | Melin 2016; 545 in vitro (Yokoyama & Radlwimmer 1999); 539 horse ERG with S 428 (Carroll et al. 2001, grade A) |
-| Pigment template | Govardovskii A1 | — | — | B | Govardovskii et al. 2000 |
+| Pigment template | Govardovskii A1 | — | — | B | Govardovskii et al. 2000 (alpha + beta band; no lens/media filtering, C) |
+| Display primaries | Typical CRT Brainard 1997 | — | — | C | colour-science spectra standing in for sRGB primaries, scaled to sRGB luminance weights; von Kries to display white. Gives neutral point 484.8 nm (L545) / 483.3 nm (L539) |
 | Rod peak | 500 | — (fixed) | nm | C | generic mammalian rhodopsin |
 | Colour threshold | 0.02 | — | cd/m² | A | Roth, Balkenius & Kelber 2008. Below it the model is rod-only with no S channel. Dusk (0.16) is above it, so colour stays on at dusk |
 | Neutral point | 480 | test only | nm | A | Geisbauer et al. 2004; Roth et al. 2007 |
@@ -36,6 +37,7 @@ Evidence grades:
 | CSF peak frequency b | 0.10 | 0.08 – 0.15 | × acuity | C | Melin did not report a, b, c |
 | CSF peak sensitivity c | 50 | 20 – 100 | 1/contrast | C | same |
 | Cat reference acuity | 5.81 | — | cpd | B | Melin 2016 |
+| CSF contrast threshold | on | on / off | — | C | zero components above b with contrast × S(f) < 1; see the note below |
 | Weber fraction (brightness) | 0.42 – 0.45 | upper bound for noise | — | A | Geisbauer et al. 2004 (large-field task, 2 horses) |
 | Luminance discrimination limit | 0.2 | upper bound for noise | log units | A | Macuda & Timney 1999: near chance below 0.2 log units (large field) |
 | Streak elevation | 0 | — | deg | A | Timney & Keil 1992 (acuity limited by streak ganglion density); Guo & Sugita 2000 |
@@ -45,16 +47,62 @@ Evidence grades:
 | Azimuth falloff at 90° | 0.50 | 0.30 – 0.70 | × peak | C | linear from az 0 |
 | Integration time, day | 30 | 15 – 60 | ms | C | no horse flicker-fusion value found; human cones ~60 Hz |
 | Integration time, night | 100 | — (fixed) | ms | C | human rods ~15 Hz |
-| Noise model | Poisson + Gaussian | sigma TBD | — | C | — |
+| Noise model | Poisson + Gaussian | — | — | C | seeded, device-independent (CPU generator, inverse-CDF Poisson) |
+| Photon scale q0 | 1e7 | 1e6 – 1e8 | photons/(cd/m²·s·px) | C | white-level count ≈ 4.8e6 day, 4.8e4 dusk, 16 night |
+| Neural noise σ | 0.01 | 0 – 0.05 | × mean signal | C | bounded above by the 0.42 Weber fraction |
 | Working grid | 0.01 | — (fixed) | deg/px | C | Nyquist 50 cpd > max acuity 25 |
+| Foreshortening | off | — | — | C | hook: width × cos(view azimuth); phase 2 |
+| Percept max side | 256 | — (fixed) | px | C | output area-downsampled. At close range the output Nyquist falls below the acuity (e.g. 5 m at 0.1 cm/px: ~9 cpd), so the output size, not the eye, limits detail there |
 | Photo colour | uncalibrated sRGB | — | — | C | Melin used a GretagMacbeth chart; we have none, so cone catches are approximate |
 
 ## Notes and caveats
 
-- **Melin CSF shift.** The PLOS text gives the shift as `b_species = b_cat + (VA_species − VA_cat)`
-  and says the parabola is "in log scale", but it never states whether b and VA are in log units.
-  Our b = 0.10 × acuity is equivalent to shifting log b by log(acuity ratio). That is the brief's
-  reading, not a quote from the paper.
+### CSF: Melin's peak shift, two readings
+The PLOS text gives the shift as `b_species = b_cat + (VA_species − VA_cat)` and says the
+parabola is "in log scale", but it does not say whether b and VA are in log units. There
+are two readings:
+
+1. **Log units:** `log b_species = log b_cat + (log VA_species − log VA_cat)`, so
+   `b_species = b_cat × VA_species / VA_cat`. The peak scales with the acuity ratio. Our
+   `b = 0.10 × acuity` is this form.
+2. **Linear units (cpd):** `b_species = b_cat + (VA_species − VA_cat)`. The peak moves by a fixed
+   number of cycles/deg. For zebra photopic vision (23.3 vs cat 5.81) it would move by +17.5 cpd.
+
+**The calibration does not depend on this choice.** We solve the parabola width so that
+`S(acuity) = 1`, so the cut-off frequency (where the filter output reaches zero) is the
+acuity under either reading. The reading changes only where the peak b sits below the cut-off.
+
+**The b sweep covers only the log reading.** The sweep 0.08–0.15 × acuity is 1.9–3.5 cpd
+for photopic zebra. Under the linear reading, `b_zebra = b_cat + 17.5 ≥ 17.5 cpd` for any
+`b_cat ≥ 0`, which is at least 0.75 × acuity. That is far outside the sweep, and the CSF would
+peak just below its own cut-off, which is implausible for a mammalian CSF. To test the linear
+reading anyway, extend the sweep to about 0.75–0.9 × acuity; the cut-off stays fixed at the
+acuity.
+
+### Melin Table 2 is a calibration check, not an independent validation
+Melin's Table 2 distances are computed from the acuities with `d = 2·width / tan(1/acuity)`.
+`tests/test_configs.py` reproduces them to within 1 cm. That shows our filter's cut-off
+matches the published resolution limits, by construction. It is **not** independent
+validation of the model: both sides come from the same acuity numbers.
+
+### CSF contrast threshold (`csf.contrast_threshold`)
+Above b, an FFT component is zeroed when `m(f) × S(f) < 1`, with `m = 2|F(f)|/|F(0)|`. This
+is per-coefficient contrast, so it depends on how spread the pattern's spectrum is, not only
+on stripe contrast. Straight stripes put their energy in a few coefficients and pass. Wavy
+stripes of the same width and contrast spread it over many coefficients, and each falls
+below threshold. Measured RMS contrast after the CSF, threshold on vs off (same widths,
+0.1 cm/px):
+
+| Pattern | c0 20 m | c8 20 m | c0 40 m |
+|---|---|---|---|
+| Straight | 0.366 / 0.368 | 0.126 / 0.130 | 0.108 / 0.113 |
+| Wavy | 0.240 / 0.296 | **0.011 / 0.086** | **0.010 / 0.075** |
+
+It also depends on image size (larger crops give finer frequency bins). The threshold is
+switchable (grade C, sweep on/off). A local band-limited contrast (Peli 1990) would remove
+both dependencies.
+
+### Other notes
 - **Pasternak & Merigan 1981 peak values not found.** The paper is paywalled and has no
   abstract online, so the cat CSF peak frequency and sensitivity could not be read. b and c
   stay grade C. Replace them if someone gets the PDF (doi below).

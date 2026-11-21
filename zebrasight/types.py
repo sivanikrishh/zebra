@@ -34,6 +34,7 @@ class ViewCond:
     azimuth_view_deg: float = 0.0  # target body orientation away from side-on
     beta_haze: float = 0.0  # extinction coefficient, 1/m
     speed_mps: float = 0.0  # relative motion of target across the line of sight
+    motion_dir_deg: float = 0.0  # image-plane direction of that motion, 0 = horizontal, CCW
     seed: int = 0
 
 
@@ -49,7 +50,7 @@ class ViewState:
     el_map: torch.Tensor | None = None  # (B,1,H,W) visual-field elevation, deg, up positive
     cones: torch.Tensor | None = None  # (B,2,H,W) [L, S]
     rod: torch.Tensor | None = None  # (B,1,H,W) night only
-    rho: torch.Tensor | None = None  # (B,1,H,W) local resolution limit, cycles/deg
+    acuity_map: torch.Tensor | None = None  # (B,1,H,W) local resolution limit, cycles/deg (streak -> csf)
     cm_per_px: float | None = None  # source sampling on the coat
     meta: dict[str, Any] = field(default_factory=dict)  # zebra_id, image_id, session_id, region
     log: list[dict[str, Any]] = field(default_factory=list)
@@ -69,7 +70,7 @@ class Percept:
 
     y: torch.Tensor  # (B,1,h,w) luminance signal: L cone by day, rod at night
     s: torch.Tensor | None  # (B,1,h,w) S cone; None when below the colour threshold
-    rho: torch.Tensor | None
+    rho: torch.Tensor | None  # (B,1,h,w) local black fraction (feature F2): y < Otsu, box-averaged over one acuity cycle
     mask: torch.Tensor
     deg_per_px: float
     meta: dict[str, Any]

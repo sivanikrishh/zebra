@@ -14,6 +14,7 @@ import zebrasight.env  # noqa: F401  (registers scene, atmosphere)
 import zebrasight.eye  # noqa: F401  (registers geometry, eye and eye sub-stages)
 from zebrasight.config import load_config
 from zebrasight.registry import STAGES
+from zebrasight.eye.percept import make_percept
 from zebrasight.types import COMPUTE_DTYPE, Percept, ViewCond, ViewState, default_device
 
 PIPELINE_ORDER = ("geometry", "scene", "atmosphere", "eye")
@@ -83,18 +84,7 @@ class Pipeline(nn.Module):
                           "device": str(self.device), "cond": cond.__dict__.copy()})
         for stage in self.stages:
             state = stage(state)
-        return to_percept(state)
-
-
-def to_percept(state: ViewState) -> Percept:
-    if state.rod is not None:
-        y, s = state.rod, None
-    elif state.cones is not None:
-        y, s = state.cones[:, 0:1], state.cones[:, 1:2]
-    else:
-        raise RuntimeError("eye stage produced neither cones nor rod")
-    return Percept(y=y, s=s, rho=state.rho, mask=state.mask, deg_per_px=state.deg_per_px,
-                   meta=state.meta, log=state.log, source_limited=state.source_limited)
+        return make_percept(state, self.eye_cfg)
 
 
 def _as_bchw(t: torch.Tensor) -> torch.Tensor:

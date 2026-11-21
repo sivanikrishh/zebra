@@ -1,4 +1,4 @@
-"""End-to-end run of the stub pipeline on random images: shapes, day/night switch, provenance."""
+"""End-to-end pipeline runs on random images: shapes, day/night switch, provenance."""
 
 import pytest
 import torch
@@ -32,6 +32,7 @@ def test_end_to_end_shapes(batch, phase_stages, cond_id):
     assert p.y.device.type == pipe.device.type
     assert p.mask.shape == (B, 1, H, W)
     assert p.rho.shape == (B, 1, H, W)
+    assert 0.0 <= float(p.rho.min()) and float(p.rho.max()) <= 1.0  # black fraction
     if cond_id == "c9":  # night: below the 0.02 cd/m2 colour threshold -> rod only
         assert p.s is None
     else:  # dusk 0.16 cd/m2 is above the threshold: colour stays on

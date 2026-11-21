@@ -9,7 +9,8 @@ from zebrasight.config import distances, load_config
 
 GRADES = {"A", "B", "C"}
 # grade-C values deliberately not swept in phase 1 (listed on the limits slide)
-FIXED_C = {"working_grid.deg_per_px", "temporal.integration_ms_night", "cones.rod_peak", "luminance.dawn"}
+FIXED_C = {"working_grid.deg_per_px", "temporal.integration_ms_night", "cones.rod_peak", "luminance.dawn",
+           "percept.max_side"}
 
 
 def test_distances_log_spaced():
@@ -44,7 +45,7 @@ def test_every_parameter_has_grade_and_citation_rule():
             assert cites, f"{name}: grade {p.grade} needs a citation"
         for c in cites:
             assert c in refs, f"{name}: unknown ref {c}"
-        if p.grade == "C" and p.get("sweep") is None and isinstance(p.value, (int, float)):
+        if p.grade == "C" and p.get("sweep") is None and isinstance(p.value, (int, float)) and not isinstance(p.value, bool):
             # numeric grade-C values must be swept, except the documented fixed choices
             assert name in FIXED_C, name
 

@@ -7,11 +7,21 @@
 #   grade C = our assumption: must be swept, goes on the limits slide
 # Human-readable version with discussion: docs/eye_parameters.md (keep in sync).
 
-eye_order: [dichromacy, streak, csf, motion, noise]
+# Motion blur and the streak act at the receptors, before neural filtering (csf); noise last.
+eye_order: [dichromacy, motion, streak, csf, noise]
+# On/off switches for the eye sub-stages (dichromacy is required).
+eye_stages: {dichromacy: true, motion: true, streak: true, csf: true, noise: true}
 
 working_grid:
   deg_per_px: {value: 0.01, unit: deg/px, grade: C, cite: null,
                note: "internal simulation grid; 0.01 deg/px gives Nyquist 50 cpd > 25 cpd max acuity"}
+
+geometry:
+  foreshortening: {value: false, grade: C, cite: null,
+                   note: "hook: compress flank width by cos(view azimuth); off in phase 1"}
+
+percept:
+  max_side: {value: 256, unit: px, grade: C, cite: null, note: "output area-downsampled so the longer side is at most this"}
 
 acuity:
   photopic: {value: 23.30, sweep: [16.5, 23.3, 25.0], unit: cpd, grade: A, cite: [timney1992, melin2016],
@@ -33,7 +43,9 @@ cones:
   S_peak: {value: 430, unit: nm, grade: B, cite: melin2016, note: "Melin used 430 nm S for all species"}
   L_peak: {value: 545, sweep: [539, 545], unit: nm, grade: B, cite: [melin2016, carroll2001, yokoyama1999],
            note: "545 = Melin / in-vitro (Yokoyama & Radlwimmer 1999); 539 = horse ERG (Carroll 2001, grade A, with S at 428)"}
-  template: {value: govardovskii_A1, unit: null, grade: B, cite: govardovskii2000, note: "A1 pigment template"}
+  template: {value: govardovskii_A1, unit: null, grade: B, cite: govardovskii2000, note: "A1 pigment template, alpha + beta band; no lens/media filtering (C)"}
+  display_primaries: {value: "Typical CRT Brainard 1997", unit: null, grade: C, cite: null,
+                      note: "stand-in spectra for sRGB primaries (colour-science), scaled to sRGB luminance weights; von Kries to display white"}
   rod_peak: {value: 500, unit: nm, grade: C, cite: null, note: "generic mammalian rhodopsin ~500 nm; no horse measurement found"}
 
 colour:
@@ -51,6 +63,8 @@ csf:
                     note: "Melin did not report a, b, c; Pasternak & Merigan 1981 peak values not accessible (paywalled, no abstract)"}
   c_peak_sensitivity: {value: 50, sweep: [20, 100], unit: "1/contrast", grade: C, cite: null, note: "same reason as b"}
   cat_acuity_cpd: {value: 5.81, unit: cpd, grade: B, cite: melin2016, note: "Melin's cat reference acuity"}
+  contrast_threshold: {value: true, sweep: [true, false], unit: null, grade: C, cite: null,
+                       note: "zero FFT components with contrast x S(f) < 1 above b. Per-coefficient contrast depends on how spread the pattern's spectrum is (irregular stripes spread energy), see docs/eye_parameters.md"}
 
 contrast:
   weber_fraction: {value: [0.42, 0.45], unit: null, grade: A, cite: geisbauer2004,
@@ -73,7 +87,10 @@ temporal:
 
 noise:
   model: {value: poisson_plus_gaussian, grade: C, cite: null, note: "Poisson photon noise scaled by luminance + Gaussian neural noise"}
-  neural_sigma: {value: null, sweep: null, unit: contrast, grade: C, cite: null, note: "set in phase 2, bounded above by the Weber fraction"}
+  photon_scale: {value: 1.0e7, sweep: [1.0e6, 1.0e8], unit: "photons / (cd/m2 * s * px)", grade: C, cite: null,
+                 note: "white-level counts: day ~4.8e6, dusk ~4.8e4, night ~16 per pixel"}
+  neural_sigma: {value: 0.01, sweep: [0.0, 0.05], unit: "x mean signal", grade: C, cite: null,
+                 note: "Gaussian neural noise; bounded above by the 0.42 Weber fraction"}
 
 input:
   photo_colour: {value: srgb_uncalibrated, grade: C, cite: null,

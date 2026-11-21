@@ -40,7 +40,10 @@ class Stage(nn.Module):
         node = OmegaConf.select(self.eye_cfg, key)
         if node is None:
             raise KeyError(f"eye config has no parameter {key!r}")
-        return OmegaConf.to_object(node["value"]) if OmegaConf.is_config(node["value"]) else node["value"]
+        if not OmegaConf.is_dict(node):  # bare override, e.g. noise.neural_sigma=0
+            return OmegaConf.to_object(node) if OmegaConf.is_config(node) else node
+        value = node["value"]
+        return OmegaConf.to_object(value) if OmegaConf.is_config(value) else value
 
     def record(self, state: ViewState, **params: Any) -> None:
         """Append the parameter values this stage used to ``state.log`` (provenance)."""

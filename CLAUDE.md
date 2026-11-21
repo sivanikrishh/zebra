@@ -43,6 +43,12 @@ measure which stripe features identify individuals.
 7. **Tensors:** batched `(B, C, H, W)`; cuda if available else cpu; float32 compute,
    float16 storage (`Percept.for_storage()`).
 
+## Naming
+
+- `ViewState.acuity_map`: local resolution limit (cycles/deg), streak -> csf.
+- `Percept.rho`: local BLACK FRACTION (feature F2, rho-field): y below Otsu, box-averaged
+  over one acuity cycle. Never use `rho` for acuity.
+
 ## Parameters
 
 - Never invent a parameter or citation. Each one in `configs/eye.yaml` has value, sweep,
