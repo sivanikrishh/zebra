@@ -18,6 +18,11 @@ side (~40% of the cover) plus grass blades rising from the region's lower edge, 
 target share of the region is hidden. Occluded pixels get (textured) dry-grass colour - a
 simplification: neighbours are not given stripes - and the region mask is updated so features
 use only the visible coat.
+
+Background (``cond.background``; default "none" for crops): the masked zebra is composited onto
+a procedural savanna plate (short green grass, tall dry grass, bare dust: mean colour + multi-
+scale texture noise, grade C) so its edges blend into realistic surroundings. ``make_plate`` is
+standalone so the VR scene can use the same plates.
 """
 
 from __future__ import annotations
@@ -139,6 +144,30 @@ def grass_fill(shape, colour, texture: float, seed: int, device) -> torch.Tensor
     return (col * (1.0 + texture * n)).clamp_min(0.0)
 
 
+PLATES = ("short_green", "tall_dry", "bare_dust")
+
+
+def make_plate(h: int, w: int, kind: str, mean_rgb, texture: float, seed: int, device=None) -> torch.Tensor:
+    """(1,3,h,w) linear-RGB savanna plate: mean colour x (1 + texture x multi-scale noise).
+    tall_dry adds vertical grass streaks. Generated on a fixed grid and resized, so it is the
+    same pattern at any size; also usable directly for VR textures."""
+    if kind not in PLATES:
+        raise ValueError(f"unknown plate {kind!r}; choose from {PLATES}")
+    g = torch.Generator(device="cpu").manual_seed(seed)
+    n = torch.zeros(1, 1, REF, REF)
+    for sigma, weight in ((8.0, 0.5), (2.0, 0.3), (0.7, 0.2)):  # multi-scale noise
+        layer = gaussian_blur_fft(torch.randn(1, 1, REF, REF, generator=g), sigma)
+        n = n + weight * layer / layer.std().clamp_min(1e-6)
+    if kind == "tall_dry":  # vertical streaks: noise stretched along y
+        streak = torch.randn(1, 1, 1, REF, generator=g).expand(1, 1, REF, REF)
+        n = 0.6 * n + 0.8 * gaussian_blur_fft(streak.contiguous(), 0.7)
+    n = n / n.std().clamp_min(1e-6)
+    n = _resize(n, (h, w))
+    col = torch.tensor(list(mean_rgb), dtype=torch.float32).view(1, 3, 1, 1)
+    plate = (col * (1.0 + texture * n)).clamp_min(0.0)
+    return plate.to(device) if device is not None else plate
+
+
 @register_stage("scene")
 class Scene(Stage):
     def forward(self, state: ViewState) -> ViewState:
@@ -148,6 +177,14 @@ class Scene(Stage):
             return state
         rgb, mask = state.rgb, state.mask
         info: dict = {"applied": True}
+        if c.background != "none":  # behind everything: replaces pixels outside the region mask
+            mean = list(self.param(f"env.scene.background.plates.{c.background}"))
+            tex = float(self.param("env.scene.background.texture"))
+            plates = torch.cat([make_plate(*rgb.shape[-2:], c.background, mean, tex,
+                                           scene_seed(state.meta, i, c.cond_id, c.seed, "background"), rgb.device)
+                                for i in range(rgb.shape[0])])
+            rgb = mask * rgb + (1.0 - mask) * plates
+            info.update(background=c.background)
         if c.shadow_frac > 0:
             dark = float(self.param("env.scene.shadow.darkening"))
             tint = list(self.param("env.scene.shadow.tint_rgb"))

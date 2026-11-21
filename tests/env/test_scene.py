@@ -74,6 +74,27 @@ def test_occlusion_reproducible_and_id_dependent():
     assert not torch.equal(a, c)
 
 
+@pytest.mark.parametrize("kind", ["short_green", "tall_dry", "bare_dust"])
+def test_background_plate_composite(kind):
+    st = _state(make_cond("c0", 20.0, background=kind))
+    out = _stage()(st)
+    inside = (st.mask > 0.5).expand_as(st.rgb)
+    assert torch.equal(out.rgb[inside], st.rgb[inside])  # the zebra region is untouched
+    outside = out.rgb.permute(0, 2, 3, 1)[(st.mask < 0.5)[:, 0]].mean(0)
+    mean = torch.tensor(list(ENV.scene.background.plates[kind].value))
+    assert torch.allclose(outside, mean, rtol=0.15)  # plate colour behind the zebra
+
+
+def test_plate_standalone_for_vr():
+    from zebrasight.env.scene import make_plate
+
+    a = make_plate(64, 96, "tall_dry", [0.33, 0.27, 0.12], 0.18, seed=3)
+    b = make_plate(128, 192, "tall_dry", [0.33, 0.27, 0.12], 0.18, seed=3)
+    assert a.shape == (1, 3, 64, 96) and (a >= 0).all()
+    b_small = torch.nn.functional.interpolate(b, size=(64, 96), mode="area")
+    assert torch.corrcoef(torch.stack([a.flatten(), b_small.flatten()]))[0, 1] > 0.9  # same pattern at any size
+
+
 def test_core_conditions_untouched():
     for cid in ("c0", "c1", "c4", "c8", "c9"):
         st = _state(make_cond(cid, 20.0))
