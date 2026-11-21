@@ -7,8 +7,12 @@ All derived images are **internal – not for public display** (GZGC is CC BY-NC
 
 Full-run subset: every zebra with ≥ 2 left-side views on different dates (321 zebras), at most
 4 views each (2 gallery from one session, 2 query from another), 1,044 views × {face, flank,
-rump} = 3,132 rows. `data/regions_all.parquet` has all 2,315 left views; `data/regions_pilot.parquet`
-the 50-zebra pilot.
+rump}. **Region rule v2** (`zebrasight.data.heads`, masks in `data/masks/gzgc_v2/`): face = OWLv2
+head box ∩ body mask (fallback: front-most tip of the silhouette, 0.22 × body length; photos with
+neither have **no face row**); flank = middle of the trunk between shoulder and hip, excluding neck
+and head; rump = rear 25% of the trunk, excluding the tail. The rule-v1 table (face was mostly
+neck) is kept as `data/regions_v1.parquet`; `data/regions_all.parquet` (all 2,315 left views) and
+`data/regions_pilot.parquet` are still rule v1.
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -25,7 +29,8 @@ the 50-zebra pilot.
 | mask_label | int | 1 face, 2 flank, 3 rump (PNG also has 4 = other body) |
 | cm_per_px, cm_per_px_unc | float | scale (231.5 cm / box width), ±0.20 |
 | scale_method | str | `body_length_bbox_width` |
-| mask_method | str | `maskrcnn_rule` or `bbox_rule` (fallback; 7 views in the subset) |
+| mask_method | str | face: `owlv2` or `silhouette_tip`; flank / rump: `maskrcnn_trunk`, or `bbox_rule` (no body mask; 7 views) |
+| region_rule | str | `v2` (rule-v1 tables lack this column) |
 | viewpoint, date | str | always `left`; ISO date |
 | ann_id, image_path, theta, mask_iou, region_px | — | provenance |
 
@@ -83,6 +88,11 @@ p["y"], p["s"], p["rho"], p["mask"], p["deg_per_px"], p["distance_m"], p["displa
 The pilot store `cache/percepts_pilot.zarr` is still **layout 1** (conditions c0, c7, c8, c9 as the
 first array axis; produced before the speed fixes; storage cap 1024, full-resolution S). See
 `docs/handoff_B.md` for how to read or migrate it.
+
+**Invalid face rows.** Face percepts made with region rule v1 are mostly neck. Both existing stores
+carry `attrs.invalid_regions = {"face": "face_v1 = neck (invalid) …"}` at the root and
+`valid: false` on every v1 face row: **skip rows with `valid == False`**. In the env-demo store the
+faces of the 5 demo zebras were regenerated with rule v2 (`region_rule: "v2"`, `valid: true`).
 
 ## 4. Guarantees
 

@@ -24,10 +24,18 @@ python -m zebrasight.data.handoff unpack /path/to/zebrasight_data_handoff.zip
 ```
 
 The bundle (`cache/zebrasight_data_handoff.zip` on A's laptop, made with
-`python -m zebrasight.data.handoff pack`) holds the Mask R-CNN label PNGs and
-`data/regions.parquet` / `regions_all.parquet` / `regions_pilot.parquet`, so B uses exactly A's
-masks and splits. To rebuild them instead (≈ 10 min on a 3090): `python -m zebrasight.data.masks`
-then `python -m zebrasight.data.subset`.
+`python -m zebrasight.data.handoff pack`) holds the region label PNGs and
+`data/regions.parquet` (+ v1 / pilot tables), so B uses exactly A's masks and splits.
+
+**Region rule v2 (important).** `data/regions.parquet` now uses region rule v2: the face is the real
+head (OWLv2 head detection, fallback: front tip of the silhouette), the flank is the trunk between
+shoulder and hip (no neck), the rump excludes the tail. Rule v1's "face" was mostly neck, so
+**any face percept made before this (pilot store, env-demo store except its 5 regenerated zebras)
+is invalid**; those rows are flagged `valid: false`. Some photos have no face row (no usable head);
+see `docs/data_report.md` for the shares. To rebuild the masks instead of using the bundle
+(≈ 15 min on a 3090; needs `pip install transformers`, downloads OWLv2 once):
+`python -m zebrasight.data.masks`, `python -m zebrasight.data.subset`, then
+`python -m zebrasight.data.heads run` and `python -m zebrasight.data.regions_v2`.
 
 ## 3. One command
 

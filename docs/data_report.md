@@ -91,15 +91,24 @@ QA grid: `docs/examples/masks/qa_grid.png` (internal).
 
 Matched Mask R-CNN masks: IoU with the annotation box median 0.8, range 0.5–0.99.
 
-`data/regions.parquet`: 6945 rows (image × region; a region needs ≥ 400 px).
+`data/regions.parquet`: 3125 rows (image × region; a region needs ≥ 400 px).
 
 | region | gallery | query |
 |---|---|---|
-| face | 1073 | 1242 |
-| flank | 1073 | 1242 |
-| rump | 1073 | 1242 |
+| face | 522 | 515 |
+| flank | 528 | 516 |
+| rump | 528 | 516 |
 
 Split check: 0 encounters in both splits; 321 of 321 zebras have gallery and query regions.
+
+### Region rule v2 (current `data/regions.parquet`)
+
+Rule v1's face (front 20% / upper part of the body) was mostly NECK and missed lowered heads.
+Rule v2 (`zebrasight.data.heads`): face = OWLv2 head box ∩ body mask, fallback = front tip of the
+silhouette (0.22 × body length); flank = trunk between shoulder and hip without neck/head; rump =
+rear 25% of the trunk without the tail. Face source over the 1044 subset photos: owlv2 828 (79.3%), silhouette_tip 209 (20.0%), none 7 (0.7%). Zebras with face crops in ≥ 2 sessions: 320 of 321.
+QA: `docs/examples/masks_v2/qa_grid_v2.png` (face correct in 21/24 by eye, all 12 grazing poses;
+flank/rump 24/24). The v1 notes below apply to `data/regions_v1.parquet` and the pilot.
 
 ### Known issues from the QA grid (grade C, for the limits slide)
 

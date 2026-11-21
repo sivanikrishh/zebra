@@ -3,8 +3,10 @@
     python -m zebrasight.data.handoff pack   [out.zip]    # default cache/zebrasight_data_handoff.zip
     python -m zebrasight.data.handoff unpack <in.zip>
 
-Bundle (~11 MB): data/masks/gzgc/*.png, data/regions.parquet (full-run subset),
-data/regions_all.parquet, data/regions_pilot.parquet, data/interim/*.parquet. Paths inside the
+Bundle: data/masks/gzgc_v2/*.png (region rule v2: OWLv2 faces, trunk flank/rump; used by
+data/regions.parquet), data/masks/gzgc/*.png (rule v1, kept for the pilot), data/regions.parquet
+(full-run subset, rule v2), data/regions_v1.parquet, data/regions_all.parquet, data/regions_pilot.parquet,
+data/regions_demo5_v2.parquet, data/interim/*.parquet. Paths inside the
 zip are POSIX and repo-relative, so it unpacks identically on Linux and Windows. The images
 themselves are NOT included (licence; B unpacks the organiser's archive with
 ``python -m zebrasight.data.unpack``).
@@ -19,8 +21,8 @@ from pathlib import Path, PurePosixPath
 from zebrasight.config import REPO_ROOT
 
 DEFAULT = REPO_ROOT / "cache" / "zebrasight_data_handoff.zip"
-INCLUDE = ("data/masks/gzgc", "data/regions.parquet", "data/regions_all.parquet", "data/regions_pilot.parquet",
-           "data/interim")
+INCLUDE = ("data/masks/gzgc", "data/masks/gzgc_v2", "data/regions.parquet", "data/regions_v1.parquet",
+           "data/regions_all.parquet", "data/regions_pilot.parquet", "data/regions_demo5_v2.parquet", "data/interim")
 
 
 def pack(out: Path = DEFAULT) -> Path:

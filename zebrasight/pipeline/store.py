@@ -125,7 +125,7 @@ def write_condition(g: zarr.Group, percepts: list) -> int:
 
 
 ROW_ATTRS = ("zebra_id", "image_id", "session_id", "encounter_id", "region", "split", "ann_id", "cm_per_px",
-             "cm_per_px_unc", "scale_method", "mask_method", "date")
+             "cm_per_px_unc", "scale_method", "mask_method", "date", "region_rule")
 
 
 def _row_attrs(row) -> dict:
@@ -156,7 +156,7 @@ def open_root(out: Path, regions_path: Path | None, eye, distances, aliases: dic
 
 
 def run(regions_path: Path, out: Path, conds: list[str] | None = None, regions=("flank", "face"),
-        low_priority: bool = False, every: int = 10, profile=None) -> dict:
+        low_priority: bool = False, every: int = 10, profile=None, recompute: bool = False) -> dict:
     if low_priority:
         lower_priority()
     grid = load_config("grid")
@@ -186,6 +186,11 @@ def run(regions_path: Path, out: Path, conds: list[str] | None = None, regions=(
     for k, row in enumerate(reg.itertuples(index=False), 1):
         row = row._asdict()
         g = rows.require_group(row_key(row))
+        if recompute:  # replace these rows' listed conditions (e.g. after a region-mask fix)
+            for c in computed:
+                if c in g.group_keys():
+                    del g[c]
+            g.attrs.update({**_row_attrs(row), "valid": True, "invalid_reason": None})
         if "zebra_id" not in g.attrs:
             g.attrs.update(_row_attrs(row))
         todo = [c for c in computed if not (c in g.group_keys() and g[c].attrs.get("complete"))]
@@ -273,6 +278,23 @@ def migrate_v1(src: Path, dst: Path) -> dict:
     return {"rows": n}
 
 
+def mark_region_invalid(path: Path, region: str, note: str) -> int:
+    """Flag every row of ``region`` (attrs only: no arrays touched) and record the note at the root.
+    Works for layout 1 and 2 stores."""
+    root = zarr.open_group(str(path), mode="r+")
+    flags = dict(root.attrs.get("invalid_regions", {}))
+    flags[region] = note
+    root.attrs["invalid_regions"] = flags
+    n = 0
+    rows = root["rows"]
+    for key in rows.group_keys():
+        g = rows[key]
+        if g.attrs.get("region") == region and g.attrs.get("region_rule", "v1") == "v1":
+            g.attrs.update({"valid": False, "invalid_reason": note})
+            n += 1
+    return n
+
+
 def store_size(path: Path) -> int:
     return sum(p.stat().st_size for p in Path(path).rglob("*") if p.is_file())
 
@@ -285,6 +307,8 @@ def main() -> None:
     ap.add_argument("--with-extras", action="store_true", help="add extra_conditions (s25,s50,o20,o40,o60,m2,m5)")
     ap.add_argument("--regions-used", default="flank,face")
     ap.add_argument("--low-priority", action="store_true")
+    ap.add_argument("--recompute", action="store_true",
+                    help="delete and recompute the listed conditions for the rows in the regions file")
     ap.add_argument("--migrate-v1", nargs=2, type=Path, metavar=("OLD", "NEW"))
     a = ap.parse_args()
     if a.migrate_v1:
@@ -297,7 +321,7 @@ def main() -> None:
     if a.with_extras:
         grid = load_config("grid")
         conds = (conds or list(grid.core_conditions)) + list(grid.extra_conditions)
-    res = run(a.regions, a.out, conds, tuple(a.regions_used.split(",")), a.low_priority)
+    res = run(a.regions, a.out, conds, tuple(a.regions_used.split(",")), a.low_priority, recompute=a.recompute)
     print(f"done: {res['rows_computed']} rows, {res['percepts']} percepts in {res['seconds']:.0f} s; "
           f"store {store_size(a.out) / 1e9:.3f} GB on disk; peak RAM {res['peak_rss_gb']:.2f} GB", flush=True)
 

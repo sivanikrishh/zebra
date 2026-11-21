@@ -29,6 +29,7 @@ dependencies = [
     "colour-science",
     "pyyaml",
     "psutil",
+    "transformers",
 ]
 
 [project.optional-dependencies]
