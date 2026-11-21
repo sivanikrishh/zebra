@@ -104,10 +104,17 @@ def occlusion_map(mask: torch.Tensor, frac: float, seed: int, blade_width: float
         return torch.zeros_like(mask)
     # the pattern is built once per crop/condition (on the first mask seen) and reused at every
     # distance: the region's normalised shape is the same, only the pixel grid changes
-    occ = _cached(("occ", seed, frac, blade_width, blade_max_height, neighbour_share),
+    occ = _cached(("occ", seed, frac, blade_width, blade_max_height, neighbour_share, _shape_signature(mask)),
                   lambda: _build_occluder(m, frac, seed, blade_width, blade_max_height, neighbour_share))
     out = F.interpolate(occ.float()[None, None], size=(h, w), mode="bilinear", align_corners=False) > 0.5
     return out.to(mask.dtype).to(mask.device)
+
+
+def _shape_signature(mask: torch.Tensor) -> bytes:
+    """Coarse (16x16) signature of the region's normalised shape: stable across distances of the
+    same crop, different for different regions, so cached patterns never cross crops."""
+    small = F.adaptive_avg_pool2d(mask.float().cpu(), (16, 16))[0, 0] > 0.5
+    return small.numpy().tobytes()
 
 
 def _build_occluder(m: torch.Tensor, frac: float, seed: int, blade_width: float, blade_max_height: float,
