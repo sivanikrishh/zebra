@@ -1,0 +1,73 @@
+{
+ "description": "Zebra dichromat matrices. All RGB here is LINEAR sRGB: decode textures with the sRGB EOTF before using them and encode after.",
+ "cones_nm": {
+  "L": 545.0,
+  "S": 430.0,
+  "rod": 500.0
+ },
+ "rgb_to_LS": [
+  [
+   0.13346700236811693,
+   0.6913380502747578,
+   0.1751949473571251
+  ],
+  [
+   0.01957932158959134,
+   0.08039874501412253,
+   0.9000219333962862
+  ]
+ ],
+ "LS_to_rgb": [
+  [
+   1.2417058839302926,
+   -0.24170588393029235
+  ],
+  [
+   1.2417058839302926,
+   -0.24170588393029235
+  ],
+  [
+   -0.1379336980126072,
+   1.137933698012607
+  ]
+ ],
+ "rgb_to_LS_display_inverse": [
+  [
+   0.41240252632143753,
+   0.4124025263214374,
+   0.1751949473571251
+  ],
+  [
+   0.049989033301856986,
+   0.04998903330185689,
+   0.9000219333962862
+  ]
+ ],
+ "rgb_to_rgb_simulated": [
+  [
+   0.16099432491946145,
+   0.8390056750805385,
+   3.335066734385575e-17
+  ],
+  [
+   0.16099432491946145,
+   0.8390056750805385,
+   3.335066734385575e-17
+  ],
+  [
+   0.0038703726217299813,
+   -0.00387037262173,
+   0.9999999999999999
+  ]
+ ],
+ "rgb_to_rod": [
+  [
+   0.03721150098442646,
+   0.5810584070866956,
+   0.3817300919288781
+  ]
+ ],
+ "neutral_point_nm": 484.7984376709313,
+ "method": "rgb_to_LS: Govardovskii et al. 2000 A1 templates x 'Typical CRT Brainard 1997' primaries scaled to sRGB luminance, quantum catch, von Kries to display white. LS_to_rgb: Vienot, Brettel & Mollon 1999 adapted to S/L (blue (0,0,1) and yellow (1,1,0) map to themselves). rgb_to_LS_display_inverse = pinv(LS_to_rgb): recovers [L, S] from a display texture exactly (the display lies in its 2-D range). Night (< 0.02 cd/m2): rod only, shown grey.",
+ "generated_by": "python -m zebrasight.vrpack"
+}

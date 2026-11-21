@@ -1,0 +1,55 @@
+{
+ "azimuth_convention": "0 deg = straight ahead of the zebra's head, positive to the right; elevation 0 = horizon, positive up",
+ "acuity_map": {
+  "formula": "A(az, el) = A_regime * max(floor, exp(-el^2 / (2 sigma_el^2)) * max(0, 1 - (1 - falloff_90) * |az| / 90))",
+  "sigma_el_deg": 5.0,
+  "falloff_90": 0.5,
+  "floor": 0.16,
+  "grade": "A (floor, streak) / C (sigma, falloff)",
+  "source": "configs/eye.yaml streak block (Timney & Keil 1992; Guo & Sugita 2000; Harman et al. 1999)"
+ },
+ "total_horizontal_fov_deg": {
+  "value": 350,
+  "grade": "C",
+  "status": "approximate",
+  "note": "no verified source found; commonly quoted for horses"
+ },
+ "binocular_zone_deg": {
+  "value": 65,
+  "sweep": [
+   65,
+   80
+  ],
+  "grade": "B",
+  "source": "65 deg Crispin 1990, 80 deg Harman et al. 1999, as cited in Frontiers Vet Sci 2025 doi 10.3389/fvets.2025.1647911 (secondary)",
+  "centre_az_deg": 0,
+  "note": "pointed down the nose"
+ },
+ "blind_zones": [
+  {
+   "name": "behind the head",
+   "az_deg": [
+    175,
+    185
+   ],
+   "grade": "C",
+   "status": "approximate",
+   "note": "360 - total FOV; width depends on head carriage"
+  },
+  {
+   "name": "in front of the forehead / below the nose",
+   "az_deg": [
+    -15,
+    15
+   ],
+   "el_deg": [
+    -90,
+    -40
+   ],
+   "grade": "C",
+   "status": "approximate",
+   "note": "Harman et al. 1999 describe a blind area in front of the forehead"
+  }
+ ],
+ "panoramic_addon": "not implemented: values here come from configs/eye.yaml plus the approximate zones above"
+}
