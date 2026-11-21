@@ -25,6 +25,7 @@ import math
 import torch
 
 from zebrasight.eye.ops import gaussian_resize, resize_mask
+from zebrasight.eye.streak import LIGHT_TO_REGIME
 from zebrasight.registry import Stage, register_stage
 from zebrasight.types import ViewState
 
@@ -59,10 +60,14 @@ class Geometry(Stage):
         if do_foreshorten and c.azimuth_view_deg:
             rgb, mask = foreshorten(rgb, mask, c.azimuth_view_deg)
 
+        # regime-adaptive working grid: no finer than samples_per_cycle px per acuity cycle
+        # (day: 0.01 deg/px unchanged; dusk ~1.6x and night ~12x coarser, same filtering margin)
+        acuity = float(self.param(f"acuity.{LIGHT_TO_REGIME[c.light]}"))
+        grid = max(grid, 1.0 / (float(self.param("working_grid.samples_per_cycle")) * acuity))
         dpp_src = deg_per_px(state.cm_per_px, c.distance_m)
         h, w = mask.shape[-2:]
-        source_limited = dpp_src >= grid
-        target = dpp_src if source_limited else grid  # never upsample a coarse source
+        source_limited = dpp_src >= float(self.param("working_grid.deg_per_px"))
+        target = max(dpp_src, grid)  # never upsample a coarse source
         # working-size cap (speed, memory): coarsen the target grid if the longer side would exceed it
         max_side = int(self.param("working_grid.max_side"))
         display_limited = max(h, w) * dpp_src / target > max_side

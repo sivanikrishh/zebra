@@ -86,12 +86,13 @@ def main() -> None:
     out = Path(tempfile.mkdtemp()) / "profile.zarr"
     g = zarr.open_group(str(out), mode="a")
     batched = "--looped" not in sys.argv
+    geo_cache: dict = {}
     for c in conds:
         _sync()
         t = time.perf_counter()
         if batched:
             percepts = pipe.run_distances(img, float(row.cm_per_px), mask, make_cond(c, distances[0]), distances,
-                                          meta=meta)
+                                          meta=meta, geo_cache=geo_cache)
         else:
             percepts = [pipe.run(img, float(row.cm_per_px), mask, make_cond(c, d), meta=meta) for d in distances]
         _sync()

@@ -29,6 +29,7 @@ import datetime as dt
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -128,13 +129,22 @@ def _row_attrs(row) -> dict:
     return {k: (row[k].item() if hasattr(row[k], "item") else row[k]) for k in ROW_ATTRS if k in row}
 
 
+def _portable_path(p) -> str:
+    """Repo-relative POSIX path when inside the repo (portable Windows <-> Linux), else absolute."""
+    p = Path(p).resolve()
+    try:
+        return p.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return p.as_posix()
+
+
 def open_root(out: Path, regions_path: Path | None, eye, distances, aliases: dict) -> zarr.Group:
     root = zarr.open_group(str(out), mode="a")
     if "layout_version" not in root.attrs:
         root.attrs.update({
             "layout_version": LAYOUT_VERSION, "distances_m": distances,
             "eye_config": OmegaConf.to_container(eye, resolve=True), "aliases": aliases,
-            "regions_file": Path(regions_path).resolve().relative_to(REPO_ROOT).as_posix() if regions_path else None,
+            "regions_file": _portable_path(regions_path) if regions_path else None,
             "created": dt.datetime.now().isoformat(timespec="seconds"),
             "licence": "derived from GZGC CC BY-NC-ND 2.0: internal, not for public display"})
     elif root.attrs["layout_version"] != LAYOUT_VERSION:
@@ -163,6 +173,8 @@ def run(regions_path: Path, out: Path, conds: list[str] | None = None, regions=(
     t0 = time.perf_counter()
     n_rows = n_percepts = 0
     raw = 0
+    writer = ThreadPoolExecutor(max_workers=1)  # zarr/blosc writes overlap the next GPU batch
+    pending = []
     for k, row in enumerate(reg.itertuples(index=False), 1):
         row = row._asdict()
         g = rows.require_group(row_key(row))
@@ -171,13 +183,17 @@ def run(regions_path: Path, out: Path, conds: list[str] | None = None, regions=(
         todo = [c for c in computed if not (c in g.group_keys() and g[c].attrs.get("complete"))]
         if todo:
             img, mask, meta = load_region(row)
+            geo_cache: dict = {}  # geometry shared by conditions with the same distance/angle/regime
             for c in todo:
                 percepts = pipe.run_distances(img, float(row["cm_per_px"]), mask, make_cond(c, distances[0]),
-                                              distances, meta=meta)
-                raw += write_condition(g.require_group(c), percepts)
+                                              distances, meta=meta, geo_cache=geo_cache)
                 n_percepts += len(percepts)
+                pending.append(writer.submit(write_condition, g.require_group(c), percepts))
                 del percepts
-            del img, mask
+            for fut in pending:  # bounded memory: at most one crop's conditions in flight
+                raw += fut.result()
+            pending.clear()
+            del img, mask, geo_cache
             n_rows += 1
         for a, src in aliases.items():
             if a in conds and a not in g.group_keys():
@@ -188,6 +204,7 @@ def run(regions_path: Path, out: Path, conds: list[str] | None = None, regions=(
             left = rate * (len(reg) - k)
             print(f"{k:5d}/{len(reg)} rows ({n_rows} computed)  {el:6.0f} s  {rate:5.1f} s/row  ~{left:5.0f} s left  "
                   f"peak RAM {peak_rss_gb():.2f} GB", flush=True)
+    writer.shutdown(wait=True)
     return {"rows_computed": n_rows, "percepts": n_percepts, "seconds": time.perf_counter() - t0,
             "raw_bytes": raw, "peak_rss_gb": peak_rss_gb()}
 

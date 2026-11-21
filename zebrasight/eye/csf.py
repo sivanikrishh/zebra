@@ -195,6 +195,8 @@ def peli_csf_batch(lums: list[torch.Tensor], chromas: list[torch.Tensor] | None,
     # stay in its residual (always kept, never thresholded)
     item_lo = [1.0 / max(x.shape[-2:]) / d for (x, _), d in zip(padded, dpps)]
     f_hi = float(f.max())
+    if f_hi <= 0.0:  # every item is a single pixel: DC only, which the CSF passes unchanged
+        return list(lums), (list(chromas) if chromas is not None else None), {"n_bands": 0, "batch": len(lums)}
     centres = band_centres(min(item_lo), f_hi, acuity, s)
     k0 = [next(k for k, ck in enumerate(centres) if ck >= band_centres(lo, f_hi, acuity, s)[0] - 1e-9)
           for lo in item_lo]
@@ -228,6 +230,8 @@ def peli_csf_batch(lums: list[torch.Tensor], chromas: list[torch.Tensor] | None,
 
     kept = []
     for k, fk in enumerate(centres):
+        if fk * 2 ** (-s) > acuity * (1.0 + taper):
+            break  # band lies entirely above the cut-off: H = 0 there, so it can add nothing (exact)
         active = (k0_t <= k).to(xp.dtype)  # (B,1,1,1): band exists for this item
         if float(active.max()) == 0.0:
             continue

@@ -88,19 +88,32 @@ class Pipeline(nn.Module):
         distances: Sequence[float],
         meta: dict[str, Any] | None = None,
         img_is_linear: bool = False,
+        geo_cache: dict | None = None,
     ) -> list[Percept]:
         """``run`` for one condition at several distances (cond.distance_m is replaced by each).
 
         Same result as calling ``run`` per distance, except that the eye's batchable sub-stage
         (the Peli CSF) processes all distances in one GPU pass; that only changes pixels near
         the crop borders (tests/eye/test_batch.py). Input decoding is done once.
+
+        ``geo_cache``: pass the same dict for every condition of one crop and the geometry output is
+        reused across conditions with the same distance, view azimuth, field position and light
+        regime (its working grid). Geometry depends on nothing else, so the result is identical.
         """
         rgb, mask = self._prepare(img, mask, img_is_linear)
         states = []
         for d in distances:
-            st = self._initial_state(rgb, mask, replace(cond, distance_m=float(d)), cm_per_px, meta, img_is_linear)
+            c = replace(cond, distance_m=float(d))
+            st = self._initial_state(rgb, mask, c, cm_per_px, meta, img_is_linear)
             for stage in self.stages[:-1]:  # everything before the eye (geometry, scene, atmosphere)
-                st = stage(st)
+                if stage.stage_name == "geometry" and geo_cache is not None:
+                    key = (float(d), c.azimuth_view_deg, c.field_az_deg, c.field_el_deg, c.light, float(cm_per_px))
+                    if key not in geo_cache:
+                        geo_cache[key] = stage(st)
+                    g = geo_cache[key]
+                    st = g.evolve(cond=c, meta=st.meta, log=st.log + [dict(g.log[-1], cached=True)])
+                else:
+                    st = stage(st)
             states.append(st)
         states = self.stages[-1].forward_batch(states)
         return [make_percept(st, self.eye_cfg) for st in states]
