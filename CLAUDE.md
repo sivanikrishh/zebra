@@ -7,7 +7,7 @@ measure which stripe features identify individuals.
 - Person A: data + zebra-eye model. B: features/metrics. V: VR.
 - No zebra spatial-resolving-power estimate exists yet (the Wits plains zebra project is
   planned, not published), so every eye parameter is a horse proxy. See
-  `docs/eye_parameters.md` for values, sweeps, citations and evidence grades (A/B/C).
+  `docs/model_parameters.md` for values, sweeps, citations and evidence grades (A/B/C).
 
 ## Environment
 
@@ -55,4 +55,4 @@ measure which stripe features identify individuals.
   unit, citation + DOI/URL and an evidence grade: A = measured in horse, B = derived in a
   published model, C = our assumption (must be swept; goes on the limits slide).
 - Mark a citation UNVERIFIED if its DOI could not be confirmed.
-- Keep `configs/eye.yaml` and `docs/eye_parameters.md` in sync.
+- Keep `configs/eye.yaml` and `docs/model_parameters.md` in sync.

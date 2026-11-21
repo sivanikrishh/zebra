@@ -1,7 +1,10 @@
 """Run percepts for region rows and write them to a Zarr store (layout v2: one group per condition).
 
-    python -m zebrasight.pipeline.store <regions.parquet> <out.zarr> [--conds c0,c8,c9] [--regions-used flank,face]
-                                        [--low-priority]
+    python -m zebrasight.pipeline.store <regions.parquet> <out.zarr> [--conds c0,c8,c9] [--with-extras]
+                                        [--regions-used flank,face] [--low-priority]
+
+Stages: configs/grid.yaml all_stages (geometry -> scene -> atmosphere -> eye). Default conditions:
+core_conditions (c0-c9); --with-extras adds s25, s50, o20, o40, o60, m2, m5.
     python -m zebrasight.pipeline.store --migrate-v1 <old.zarr> <new.zarr>
 
 Layout v2 (zarr v3, blosc-zstd clevel 5 bit-shuffle, one shard file per array):
@@ -158,14 +161,19 @@ def run(regions_path: Path, out: Path, conds: list[str] | None = None, regions=(
         lower_priority()
     grid = load_config("grid")
     eye = load_config("eye")
-    conds = conds or list(grid.conditions.keys())
+    conds = conds or list(grid.core_conditions)
+    unknown = [c for c in conds if c not in grid.conditions]
+    if unknown:
+        raise ValueError(f"unknown condition ids {unknown}")
     aliases = {k: v for k, v in OmegaConf.to_container(grid.get("store_aliases", {})).items()}
     distances = list(grid.distances_m["values"])
     reg = pd.read_parquet(regions_path)
     reg = reg[reg.region.isin(regions)].reset_index(drop=True)
     root = open_root(out, regions_path, eye, distances, aliases)
     rows = root.require_group("rows")
-    pipe = Pipeline(["geometry", "eye"], eye_cfg=eye)
+    pipe = Pipeline(list(grid.all_stages), eye_cfg=eye)  # geometry -> scene -> atmosphere -> eye
+    if "env_config" not in root.attrs:
+        root.attrs["env_config"] = OmegaConf.to_container(pipe.env_cfg, resolve=True)
     computed = [c for c in conds if c not in aliases]
     for a, src in aliases.items():
         if a in conds and src not in computed:
@@ -273,7 +281,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("regions", type=Path, nargs="?")
     ap.add_argument("out", type=Path, nargs="?")
-    ap.add_argument("--conds", default=None, help="comma list; default all conditions in configs/grid.yaml")
+    ap.add_argument("--conds", default=None, help="comma list (e.g. c0,c1,s25); default: core_conditions c0-c9")
+    ap.add_argument("--with-extras", action="store_true", help="add extra_conditions (s25,s50,o20,o40,o60,m2,m5)")
     ap.add_argument("--regions-used", default="flank,face")
     ap.add_argument("--low-priority", action="store_true")
     ap.add_argument("--migrate-v1", nargs=2, type=Path, metavar=("OLD", "NEW"))
@@ -285,6 +294,9 @@ def main() -> None:
               f"{store_size(a.migrate_v1[1]) / 1e9:.3f} GB on disk")
         return
     conds = a.conds.split(",") if a.conds else None
+    if a.with_extras:
+        grid = load_config("grid")
+        conds = (conds or list(grid.core_conditions)) + list(grid.extra_conditions)
     res = run(a.regions, a.out, conds, tuple(a.regions_used.split(",")), a.low_priority)
     print(f"done: {res['rows_computed']} rows, {res['percepts']} percepts in {res['seconds']:.0f} s; "
           f"store {store_size(a.out) / 1e9:.3f} GB on disk; peak RAM {res['peak_rss_gb']:.2f} GB", flush=True)

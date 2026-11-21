@@ -40,7 +40,7 @@ pytest
 | `zebrasight/env/` | scene and atmosphere stages (linear RGB) |
 | `zebrasight/{data,features,metrics,plots}` | data loading, B's features/metrics, figures |
 | `configs/` | `grid.yaml` (distances x conditions), `eye.yaml` (literature parameters), `melin_table2.yaml` |
-| `docs/` | `architecture.md`, `eye_parameters.md` |
+| `docs/` | `architecture.md`, `model_parameters.md` |
 | `vr/` | V's VR work |
 
 ## Data and licence
@@ -51,5 +51,5 @@ Photos: Wild Me **GZGC-IBEIS** (plains zebras, Nairobi National Park, 2015), lic
 these images (masks, percepts, QA grids, VR textures) is **internal – not for public display**
 until use of derived images is confirmed; charts of statistics are fine. See `docs/data_report.md`.
 
-See `docs/architecture.md` for the design rules and `docs/eye_parameters.md` for every
+See `docs/architecture.md` for the design rules and `docs/model_parameters.md` for every
 parameter with its citation and evidence grade.

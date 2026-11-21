@@ -5,7 +5,7 @@
 #   grade A = measured in horse
 #   grade B = derived in a published model
 #   grade C = our assumption: must be swept, goes on the limits slide
-# Human-readable version with discussion: docs/eye_parameters.md (keep in sync).
+# Human-readable version with discussion: docs/model_parameters.md (keep in sync).
 
 # Motion blur and the streak act at the receptors, before neural filtering (csf); noise last.
 eye_order: [dichromacy, motion, streak, csf, noise]

@@ -55,7 +55,7 @@ Raw numbers: `docs/calibration_results.json`. Figure: `docs/figures/calibration.
 Melin's Table 2 distances follow from the acuity formula `d = 2w / tan(1/A)`; they are not
 behavioural measurements. Matching them shows that **our filter's cut-off sits at the
 published resolution limit** — a calibration of the implementation, not an independent
-validation of the zebra eye (see docs/eye_parameters.md).
+validation of the zebra eye (see docs/model_parameters.md).
 
 ## Method
 

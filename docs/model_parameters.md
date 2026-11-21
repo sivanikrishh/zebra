@@ -1,6 +1,7 @@
-# Zebra-eye parameters
+# Model parameters: zebra eye and environment
 
-Machine-readable source: `configs/eye.yaml` (keep both in sync).
+Machine-readable sources: `configs/eye.yaml` (eye) and `configs/env.yaml` (environment; see the
+"Environment" section). Keep both in sync with this page.
 
 **All values are horse proxies.** No zebra spatial-resolving-power estimate exists yet: the
 Wits University *Project Plains Zebra* retina sub-project plans to measure it from
@@ -54,9 +55,12 @@ Evidence grades:
 | Photon scale q0 | 1e7 | 1e6 – 1e8 | photons/(cd/m²·s·px) | C | white-level count ≈ 4.8e6 day, 4.8e4 dusk, 16 night |
 | Neural noise σ | 0.01 | 0 – 0.05 | × mean signal | C | bounded above by the 0.42 Weber fraction |
 | Working grid | 0.01 | — (fixed) | deg/px | C | Nyquist 50 cpd > max acuity 25 |
+| Working grid samples per cycle | 5 | — (fixed) | px per acuity cycle | C | working grid = max(0.01, 1/(5 × regime acuity)): day unchanged, dusk ~1.6×, night ~12× coarser (speed) |
+| Working max side | 512 | — (fixed) | px | C | close-range crops are coarsened in ONE resampling step; `display_limited` set, effective cpd logged |
 | Foreshortening | off | — | — | C | hook: width × cos(view azimuth); phase 2 |
 | Storage samples per cycle | 2.5 | — (fixed) | px per acuity cycle | C | storage grid = max(0.01, 1 / (2.5 × regime acuity)) deg/px; Gaussian pre-filter (σ = 0.4 × factor) + bilinear |
-| Storage max side | 1024 | — (fixed) | px | C | if the cap coarsens the grid, `Percept.display_limited = True` and the log records the effective cpd |
+| Storage max side | 512 | — (fixed) | px | C | if the cap coarsens the grid, `Percept.display_limited = True` and the log records the effective cpd |
+| S channel storage | half resolution | — | — | C | chroma acuity is 0.5 × luminance acuity (`percept.s_half_res`) |
 | Noise seed | hash(image_id, region, distance_m, cond_id, base seed) | — | — | — | blake2b; different per image, reproducible |
 | Photo colour | uncalibrated sRGB | — | — | C | Melin used a GretagMacbeth chart; we have none, so cone catches are approximate |
 
@@ -132,6 +136,42 @@ central contrast within 5%).
   with the acuities above (`tests/test_configs.py`), and the rounded values in the Results
   text agree.
 
+## Environment (configs/env.yaml, configs/grid.yaml)
+
+Physical order, enforced by the pipeline: **geometry** (distance, viewing angle) → **scene**
+(background, cast shadows, occlusion) → **atmosphere** (haze / dust along the path) → **eye**.
+Scene and atmosphere work in linear RGB. Conditions c0–c9 plus extras s25, s50, o20, o40, o60,
+m2, m5; c7 (dawn) is stored as an alias of c8 (dusk).
+
+| Parameter | Value | Sweep | Unit | Grade | Source / note |
+|---|---|---|---|---|---|
+| Viewing angle φ | c4/c5/c6 = 30/60/75 | — | deg | C | coat compressed along the body axis by cos φ before resampling (planar flank); validation stub `scripts/validate_oblique.py` (real GZGC frontleft/backleft) |
+| β₅₅₀ clear (c0) | 0.0002 | — | 1/m | B | V = 3.912/β ≈ 20 km; ~consistent with Nairobi AERONET AOD₄₄₀ 0.19 (Boiyo et al. 2019) over a 1–2 km mixing layer. Atmosphere is **not applied** to `aerosol: clear`, so c0 is unchanged |
+| β₅₅₀ hazy (c1) | 0.002 | — | 1/m | C | V ≈ 1.96 km, MOR ≈ 1.5 km; a standard meteorological visibility class, **not a savanna measurement** |
+| β₅₅₀ dusty (c2) | 0.01 | — | 1/m | C | V ≈ 390 m, MOR ≈ 300 m |
+| β₅₅₀ dust storm (c3) | 0.03 | — | 1/m | C | V ≈ 130 m, MOR ≈ 100 m |
+| Koschmieder threshold | 0.02 | — | contrast | B | Koschmieder 1924: V = ln(50)/β = 3.912/β |
+| WMO MOR threshold | 0.05 | — | transmittance | B | WMO CIMO guide: MOR = ln(20)/β = 2.996/β |
+| Channel wavelengths | 611 / 549 / 464 | — | nm | B | dominant wavelengths of the sRGB R/G/B primaries vs D65 (colour-science, CIE 1931) |
+| Ångström α, haze | 1.3 | 1.0 – 1.6 | — | C | Ångström 1929 "average" (UNVERIFIED value): β_B/β_R = 1.43, haze is bluish |
+| Ångström α, dust | 0.2 | 0.0 – 0.5 | — | B | coarse mineral dust; desert AERONET sites ~0.24–0.6 (Dubovik et al. 2002; Eck et al. 1999): β_B/β_R = 1.06, near-neutral |
+| Airlight, haze | (0.80, 0.88, 1.00) at Y 0.90 | Y 0.6 – 1.2 | linear RGB × sunlit white | C | bluish-white horizon |
+| Airlight, dust | (1.00, 0.80, 0.55) at Y 0.70 | Y 0.4 – 1.0 | linear RGB × sunlit white | C | yellow-brown horizon |
+| Airlight vs light regime | relative | — | — | C | the image and its airlight are both lit by the sky, so the haze/scene ratio is regime-independent; absolute airlight (Y × regime luminance, cd/m²) is logged and is 100× dimmer at dusk |
+| Shadow darkening | 0.55 | 0.40 – 0.70 | luminance removed | C | skylight-only shadow (s25, s50 = 25 / 50% of the region) |
+| Shadow tint | (0.90, 1.00, 1.15) | — | relative, unit luminance | C | bluish skylight |
+| Shadow penumbra σ | 0.04 | 0.02 – 0.08 | × region width | C | Gaussian |
+| Occlusion | o20 / o40 / o60 | — | share of region | C | neighbour silhouettes (~40% of the cover) + grass blades from the lower edge; occluded pixels → dry-grass colour; region mask updated |
+| Grass blade width | 0.012 | 0.006 – 0.025 | × region width | C | — |
+| Motion speed | m2 / m5 = 2 / 5 | — | m/s | C | horizontal, existing motion stage (blur = speed × 30 ms / distance) |
+| Background plates | short green / tall dry / bare dust | — | linear RGB mean + texture | C | default off for crops; `make_plate` reused for VR |
+
+**Limits slide:** β values for c1–c3 and all airlight colours are standard meteorological ranges
+and assumptions, not savanna measurements. I found a Nairobi AERONET climatology (annual mean
+AOD₄₄₀ 0.19 ± 0.04; Boiyo et al. 2019) but no surface visibility or dust-event extinction data
+for the GZGC area. The haze α = 1.3 value is Ångström's classic average; that value was not confirmed
+in this session (UNVERIFIED).
+
 ## References
 
 | Key | Reference | DOI | Verified |
@@ -153,4 +193,10 @@ central contrast within 5%).
 | peli1990 | Peli E (1990) Contrast in complex images. *J Opt Soc Am A* 7(10):2032–2040 | [10.1364/JOSAA.7.002032](https://doi.org/10.1364/JOSAA.7.002032) | yes |
 | caves2018 | Caves EM, Johnsen S (2018) AcuityView: an R package for portraying the effects of visual acuity on scenes observed by an animal. *Methods Ecol Evol* 9(3):793–797 | [10.1111/2041-210X.12911](https://doi.org/10.1111/2041-210X.12911) | yes |
 | johnson2020 | Johnson NP, Gregorich SM, Passaglia CL (2020) Spatiotemporal contrast sensitivity of Brown-Norway rats under scotopic and photopic illumination. *Neuroscience* 449:63–73 | [10.1016/j.neuroscience.2020.09.056](https://doi.org/10.1016/j.neuroscience.2020.09.056) | yes |
+| koschmieder1924 | Koschmieder H (1924) Theorie der horizontalen Sichtweite. *Beitr Phys freien Atmos* 12:33–53, 171–181 | — | yes (0.02 / 3.912 via WMO guide and secondary sources; page range varies) |
+| wmo_cimo | WMO (2018) Guide to Instruments and Methods of Observation (WMO-No. 8), Vol. I, Ch. 9 Visibility | [PDF](https://old.wmo.int/extranet/pages/prog/www/IMOP/publications/CIMO-Guide/Prelim_2018_ed/8_I_9_en_MR_tc.pdf) | yes (2018 preliminary edition) |
+| angstrom1929 | Ångström A (1929) On the atmospheric transmission of sun radiation and on dust in the air. *Geogr Ann* 11:156–166 | — | **UNVERIFIED** (origin of the exponent confirmed; the 1.3 value and bibliographic details not confirmed) |
+| dubovik2002 | Dubovik O et al. (2002) Variability of absorption and optical properties of key aerosol types observed in worldwide locations. *J Atmos Sci* 59:590–608 | — | yes (DOI not confirmed) |
+| eck1999 | Eck TF et al. (1999) Wavelength dependence of the optical depth of biomass burning, urban, and desert dust aerosols. *J Geophys Res* 104(D24):31333–31349 | [10.1029/1999JD900923](https://doi.org/10.1029/1999JD900923) | yes |
+| boiyo2019 | Boiyo R, Kumar KR, Zhao T, Guo J (2019) A 10-year record of aerosol optical properties and radiative forcing over three environmentally distinct AERONET sites in Kenya, East Africa. *J Geophys Res Atmos* | [10.1029/2018JD029461](https://doi.org/10.1029/2018JD029461) | yes |
 | wits_zebra | Wits University, Project Plains Zebra, retina sub-project | [web page](https://www.wits.ac.za/admintest/project-plains-zebra/sub-projects/retina/) | yes |

@@ -53,12 +53,27 @@ def _resize(x: torch.Tensor, size) -> torch.Tensor:
     return F.interpolate(x, size=size, mode="bilinear", align_corners=False)
 
 
+_CACHE: dict = {}  # distance-independent reference-grid patterns, keyed by seed + parameters
+_CACHE_MAX = 256
+
+
+def _cached(key, make):
+    if key not in _CACHE:
+        if len(_CACHE) >= _CACHE_MAX:
+            _CACHE.pop(next(iter(_CACHE)))
+        _CACHE[key] = make()
+    return _CACHE[key]
+
+
 def shadow_map(mask: torch.Tensor, frac: float, seed: int, blob_scale: float, penumbra: float) -> torch.Tensor:
     """(1,1,h,w) soft shadow in [0,1] (1 = full shadow) covering ``frac`` of the mask."""
     h, w = mask.shape[-2:]
-    g = torch.Generator(device="cpu").manual_seed(seed)
-    field = torch.randn(1, 1, REF, REF, generator=g)
-    field = gaussian_blur_fft(field, blob_scale * REF)
+
+    def make():
+        g = torch.Generator(device="cpu").manual_seed(seed)
+        return gaussian_blur_fft(torch.randn(1, 1, REF, REF, generator=g), blob_scale * REF)
+
+    field = _cached(("shadow", seed, blob_scale), make)
     field = _resize(field.to(mask.device), (h, w))
     inside = field[mask > 0.5]
     if inside.numel() == 0 or frac <= 0:
@@ -85,10 +100,21 @@ def occlusion_map(mask: torch.Tensor, frac: float, seed: int, blade_width: float
     h, w = mask.shape[-2:]
     R = OCC_REF
     m = F.interpolate(mask.float().cpu(), size=(R, R), mode="nearest")[0, 0] > 0.5
+    if int(m.sum()) == 0 or frac <= 0:
+        return torch.zeros_like(mask)
+    # the pattern is built once per crop/condition (on the first mask seen) and reused at every
+    # distance: the region's normalised shape is the same, only the pixel grid changes
+    occ = _cached(("occ", seed, frac, blade_width, blade_max_height, neighbour_share),
+                  lambda: _build_occluder(m, frac, seed, blade_width, blade_max_height, neighbour_share))
+    out = F.interpolate(occ.float()[None, None], size=(h, w), mode="bilinear", align_corners=False) > 0.5
+    return out.to(mask.dtype).to(mask.device)
+
+
+def _build_occluder(m: torch.Tensor, frac: float, seed: int, blade_width: float, blade_max_height: float,
+                    neighbour_share: float) -> torch.Tensor:
+    R = OCC_REF
     area = int(m.sum())
     occ = torch.zeros(R, R, dtype=torch.bool)
-    if area == 0 or frac <= 0:
-        return torch.zeros_like(mask)
     g = torch.Generator(device="cpu").manual_seed(seed)
     rnd = lambda lo, hi: lo + (hi - lo) * float(torch.rand(1, generator=g))  # noqa: E731
     yy, xx = torch.meshgrid(torch.arange(R, dtype=torch.float32), torch.arange(R, dtype=torch.float32), indexing="ij")
@@ -129,17 +155,19 @@ def occlusion_map(mask: torch.Tensor, frac: float, seed: int, blade_width: float
         if stalled >= 20:  # blades saturated the lower body: add a neighbour silhouette instead
             occ |= silhouette()
             stalled = 0
-    out = F.interpolate(occ.float()[None, None], size=(h, w), mode="bilinear", align_corners=False) > 0.5
-    return out.to(mask.dtype).to(mask.device)
+    return occ
 
 
 def grass_fill(shape, colour, texture: float, seed: int, device) -> torch.Tensor:
     """(1,3,h,w) linear-RGB grass: colour x (1 + texture x smooth noise), noise on the fixed grid."""
     h, w = shape
-    g = torch.Generator(device="cpu").manual_seed(seed)
-    n = gaussian_blur_fft(torch.randn(1, 1, REF, REF, generator=g), 1.0)
-    n = n / n.std().clamp_min(1e-6)
-    n = _resize(n, (h, w)).to(device)
+
+    def make():
+        g = torch.Generator(device="cpu").manual_seed(seed)
+        n = gaussian_blur_fft(torch.randn(1, 1, REF, REF, generator=g), 1.0)
+        return n / n.std().clamp_min(1e-6)
+
+    n = _resize(_cached(("grass", seed), make), (h, w)).to(device)
     col = torch.tensor(colour, dtype=torch.float32, device=device).view(1, 3, 1, 1)
     return (col * (1.0 + texture * n)).clamp_min(0.0)
 
