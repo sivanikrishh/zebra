@@ -11,7 +11,7 @@ A = data + zebra-eye model, **B = features/metrics**, **V = VR**.
 | `code/` | B, V | The full repo at the latest commit: code, `configs/`, `docs/`, `tests/`, `CLAUDE.md`, `README.md`, `requirements-lock.txt` |
 | `data_handoff/` | B | `zebrasight_data_handoff.zip`: region masks (rule v2), `regions.parquet` with gallery/query splits, v1/pilot tables |
 | `vr_export/` | V | `vr_export.zip`: 960 textures (5 zebras × flank/face × 6 conditions × 16 distances), shader JSONs, README with every formula, placeholder LUT |
-| `figures/` | everyone | Calibration, haze, montages, mask QA (`qa_grid_v2.png`) |
+| `figures/` | everyone | Calibration, haze, montages, mask QA (`qa_grid_v2.png`). **Note:** the face rows in `pilot_montage_*.png` use the old rule-v1 "face" (mostly neck): use their flank rows only. The env montages and the VR textures use the corrected faces (rule v2). |
 
 **Not included:** the GZGC photos (10 GB). Download them yourself (section 3).
 
