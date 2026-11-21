@@ -28,6 +28,7 @@ dependencies = [
     "gudhi",
     "colour-science",
     "pyyaml",
+    "psutil",
 ]
 
 [project.optional-dependencies]

@@ -24,6 +24,10 @@ conditions:
   c8: {light: dusk,  luminance_cd_m2: 0.16,    beta_haze: 0.0002, azimuth_view_deg: 0,  note: "dusk"}
   c9: {light: night, luminance_cd_m2: 1.6e-5,  beta_haze: 0.0002, azimuth_view_deg: 0,  note: "moonless night"}
 
+# Conditions with identical model inputs: computed once, stored as an alias.
+# c7 dawn and c8 dusk share the luminance regime (0.16 cd/m2, mesopic, grade C).
+store_aliases: {c7: c8}
+
 regions: [flank, face, rump]
 
 phase1:

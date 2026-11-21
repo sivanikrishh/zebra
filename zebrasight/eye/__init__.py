@@ -33,3 +33,12 @@ class Eye(Stage):
         for s in self.substages:
             state = s(state)
         return state
+
+    def forward_batch(self, states: list[ViewState]) -> list[ViewState]:
+        """Same as forward on each state, but sub-stages with a ``forward_batch`` (the CSF) run
+        once for the whole list. States must share one condition (e.g. the 16 distances)."""
+        for st in states:
+            self.record(st, order=self.enabled)
+        for s in self.substages:
+            states = s.forward_batch(states) if hasattr(s, "forward_batch") else [s(st) for st in states]
+        return states

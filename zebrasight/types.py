@@ -55,6 +55,7 @@ class ViewState:
     meta: dict[str, Any] = field(default_factory=dict)  # zebra_id, image_id, session_id, region
     log: list[dict[str, Any]] = field(default_factory=list)
     source_limited: bool = False
+    display_limited: bool = False  # working-size cap coarsened the grid (geometry)
 
     @property
     def device(self) -> torch.device:

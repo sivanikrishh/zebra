@@ -122,40 +122,103 @@ def envelope(X_band: torch.Tensor, ry: torch.Tensor, rx: torch.Tensor, size) -> 
     return torch.sqrt(b**2 + by**2 + bx**2)
 
 
+def _to_canvas(x: torch.Tensor, hc: int, wc: int) -> torch.Tensor:
+    """Extend an already reflect-padded image to the canvas by PERIODIC tiling. The single-image
+    FFT treats the padded image as periodic, so tiling keeps each item's surroundings as close
+    as possible to what it would see alone (replicate padding added low-frequency structure)."""
+    h, w = x.shape[-2:]
+    if (h, w) == (hc, wc):
+        return x
+    return x.repeat(1, 1, math.ceil(hc / h), math.ceil(wc / w))[..., :hc, :wc]
+
+
+def size_buckets(sizes: list[tuple[int, int]], ratio: float = 1.5, small: int = 64) -> list[list[int]]:
+    """Group item indices whose padded sizes are within ``ratio`` of the bucket's largest
+    (everything up to ``small`` px shares one bucket). Batching mostly pays off for the many
+    small far-distance images; similar sizes keep the shared canvas close to each item's own."""
+    order = sorted(range(len(sizes)), key=lambda i: -max(sizes[i]))
+    buckets: list[list[int]] = []
+    for i in order:
+        h, w = sizes[i]
+        if buckets:
+            bh = max(sizes[j][0] for j in buckets[-1])
+            bw = max(sizes[j][1] for j in buckets[-1])
+            if max(bh, bw) <= small or (h * ratio >= bh and w * ratio >= bw):
+                buckets[-1].append(i)
+                continue
+        buckets.append([i])
+    return buckets
+
+
 def peli_csf(lum: torch.Tensor, chroma: torch.Tensor | None, dpp: float, acuity: float,
              acuity_map: torch.Tensor | None, b_frac: float, c: float, s: float, delta: float, taper: float,
              chroma_ratio: float) -> tuple[torch.Tensor, torch.Tensor | None, dict]:
+    """Single image: a batch of one (identical to the batched computation)."""
+    lums, chromas, info = peli_csf_batch([lum], None if chroma is None else [chroma], [dpp], acuity, [acuity_map],
+                                         b_frac, c, s, delta, taper, chroma_ratio)
+    return lums[0], (chromas[0] if chromas is not None else None), info
+
+
+def peli_csf_batch(lums: list[torch.Tensor], chromas: list[torch.Tensor] | None, dpps: list[float], acuity: float,
+                   acuity_maps: list[torch.Tensor | None], b_frac: float, c: float, s: float, delta: float,
+                   taper: float, chroma_ratio: float) -> tuple[list[torch.Tensor], list[torch.Tensor] | None, dict]:
+    """Peli CSF on several images of ONE condition (same regime acuity A), e.g. the 16 distances.
+
+    Images may differ in size and deg/px. Each is reflect-padded as in the single-image case,
+    then replicate-padded (bottom/right) to a shared canvas; all frequency filters are built per
+    item from its own deg/px, so every item sees its own cpd grid. One FFT pass serves the
+    batch, removing per-call GPU launch overhead. With one item the canvas is the item itself,
+    so the result is the single-image computation exactly. With several items, the extra canvas
+    padding lies outside each item's reflect pad and changes results only near the borders
+    (checked in tests/eye/test_batch.py).
+    """
     b, c, w = csf_params(acuity, b_frac, c)
-    xp, pads = reflect_pad(lum)
-    hp, wp = xp.shape[-2:]
-    amap = (torch.full_like(lum, acuity) if acuity_map is None else acuity_map)
-    amap = F.pad(amap, (pads[1], pads[1], pads[0], pads[0]), mode="replicate")
+    dev = lums[0].device
+    padded = [reflect_pad(x) for x in lums]
+    hc = max(xp.shape[-2] for xp, _ in padded)
+    wc = max(xp.shape[-1] for xp, _ in padded)
+    xp = torch.cat([_to_canvas(x, hc, wc) for x, _ in padded])  # (B,1,hc,wc)
+    floor = torch.stack([0.01 * x.mean().abs().clamp_min(1e-12) for x, _ in padded]).view(-1, 1, 1, 1)
+    amaps = []
+    for x, (_, pads), am in zip(lums, padded, acuity_maps):
+        am = torch.full_like(x, acuity) if am is None else am
+        am = F.pad(am, (pads[1], pads[1], pads[0], pads[0]), mode="replicate")
+        amaps.append(_to_canvas(am, hc, wc))
+    amap = torch.cat(amaps)
     log2_amap = torch.log2(amap)
     b_map = b_frac * amap
 
-    f = radial_freq(hp, wp, lum.device) / dpp  # cpd
-    f_lo = min(1.0 / hp, 1.0 / wp) / dpp
+    dpp_t = torch.tensor(dpps, dtype=xp.dtype, device=dev).view(-1, 1, 1, 1)
+    f = radial_freq(hc, wc, dev)[None, None] / dpp_t  # (B,1,hc,wc//2+1), cpd per item
+    # each item keeps the band set it would have alone (lowest band from its OWN padded size),
+    # so batching changes nothing but the canvas padding; bands below an item's lowest band
+    # stay in its residual (always kept, never thresholded)
+    item_lo = [1.0 / max(x.shape[-2:]) / d for (x, _), d in zip(padded, dpps)]
     f_hi = float(f.max())
-    centres = band_centres(f_lo, f_hi, acuity, s)
-    g0 = log_cos_band(f, centres[0], s)
-    residual = torch.where(f < centres[0], 1.0 - g0, torch.zeros_like(f))
+    centres = band_centres(min(item_lo), f_hi, acuity, s)
+    k0 = [next(k for k, ck in enumerate(centres) if ck >= band_centres(lo, f_hi, acuity, s)[0] - 1e-9)
+          for lo in item_lo]
+    residual = torch.cat([
+        torch.where(f[i : i + 1] < centres[k0[i]], 1.0 - log_cos_band(f[i : i + 1], centres[k0[i]], s),
+                    torch.zeros_like(f[i : i + 1]))
+        for i in range(len(lums))])
+    k0_t = torch.tensor(k0, device=dev).view(-1, 1, 1, 1)
     H = csf_transfer(f, acuity, b, c, w, taper)
 
     X = torch.fft.rfft2(xp)
-    size = (hp, wp)
+    size = (hc, wc)
     low = torch.fft.irfft2(X * residual, s=size)  # unfiltered, for contrast denominators
     out = torch.fft.irfft2(X * (residual * H), s=size)
-    floor = 0.01 * xp.mean(dim=(-2, -1), keepdim=True).abs().clamp_min(1e-12)
 
-    if chroma is not None:
-        cp, _ = reflect_pad(chroma)
+    if chromas is not None:
+        cp = torch.cat([_to_canvas(reflect_pad(x)[0], hc, wc) for x in chromas])
         Xc = torch.fft.rfft2(cp)
         Hc = cosine_lowpass(f, chroma_ratio * acuity)
         out_c = torch.fft.irfft2(Xc * (residual * Hc), s=size)
         log2_cmap = log2_amap + math.log2(chroma_ratio)
 
     s_glob = torch.where(f > b, csf_sensitivity(f, b, c, w), torch.full_like(f, c))  # flat-top S(f; A)
-    ry, rx = riesz_kernels(hp, wp, lum.device)
+    ry, rx = riesz_kernels(hc, wc, dev)
 
     def s_eff_at(fk: float, peak_b):
         if isinstance(peak_b, float):
@@ -164,8 +227,11 @@ def peli_csf(lum: torch.Tensor, chroma: torch.Tensor | None, dpp: float, acuity:
                            csf_sensitivity(torch.full_like(peak_b, fk), peak_b, c, w))
 
     kept = []
-    for fk in centres:
-        g = log_cos_band(f, fk, s)
+    for k, fk in enumerate(centres):
+        active = (k0_t <= k).to(xp.dtype)  # (B,1,1,1): band exists for this item
+        if float(active.max()) == 0.0:
+            continue
+        g = log_cos_band(f, fk, s) * active
         if float(g.max()) == 0.0:
             continue
         band = torch.fft.irfft2(X * g, s=size)
@@ -178,13 +244,20 @@ def peli_csf(lum: torch.Tensor, chroma: torch.Tensor | None, dpp: float, acuity:
         out = out + q * r * torch.fft.irfft2(X * (g * H), s=size)
         low = low + band
         kept.append(float((q * r).mean()))
-        if chroma is not None:
+        if chromas is not None:
             rc = (1.0 + (log2_cmap - math.log2(fk)) / s).clamp(0.0, 1.0)
             out_c = out_c + rc * torch.fft.irfft2(Xc * (g * Hc), s=size)
 
+    def crop(t: torch.Tensor, i: int) -> torch.Tensor:
+        ph, pw = padded[i][1]
+        h, w_ = lums[i].shape[-2:]
+        return t[i : i + 1, :, ph : ph + h, pw : pw + w_]
+
     info = {"n_bands": len(centres), "band_centres_cpd": [round(x, 4) for x in centres],
-            "mean_kept_per_band": [round(x, 4) for x in kept]}
-    return unpad(out, pads), (unpad(out_c, pads) if chroma is not None else None), info
+            "mean_kept_per_band": [round(x, 4) for x in kept], "batch": len(lums), "canvas": (hc, wc)}
+    lum_out = [crop(out, i) for i in range(len(lums))]
+    chroma_out = [crop(out_c, i) for i in range(len(lums))] if chromas is not None else None
+    return lum_out, chroma_out, info
 
 
 def global_csf(x: torch.Tensor, dpp: float, acuity: float, b: float, c: float, w: float, taper: float) -> torch.Tensor:
@@ -207,33 +280,66 @@ def chroma_lowpass(x: torch.Tensor, dpp: float, cutoff_cpd: float) -> torch.Tens
 @register_stage("csf")
 class CSF(Stage):
     def forward(self, state: ViewState) -> ViewState:
+        return self.forward_batch([state])[0]
+
+    def forward_batch(self, states: list[ViewState]) -> list[ViewState]:
+        """CSF for several states of ONE condition (same light regime), e.g. the 16 distances.
+        In peli mode they share one batched FFT pass (peli_csf_batch); global mode loops."""
         mode = str(self.param("csf.mode"))
         if mode not in MODES:
             raise ValueError(f"csf.mode must be one of {MODES}, got {mode!r}")
-        regime, acuity = regime_acuity(self, state.cond.light)
+        lights = {st.cond.light for st in states}
+        if len({regime_acuity(self, li)[0] for li in lights}) != 1:
+            raise ValueError(f"forward_batch needs one light regime, got {lights}")
+        regime, acuity = regime_acuity(self, states[0].cond.light)
         b_frac = float(self.param("csf.b_peak_fraction"))
         c_peak = float(self.param("csf.c_peak_sensitivity"))
         taper = float(self.param("csf.cutoff_taper"))
         ratio = float(self.param("colour.chroma_acuity_ratio"))
         b, c, w = csf_params(acuity, b_frac, c_peak)
-        dpp = state.deg_per_px
-        lum = state.rod if state.rod is not None else state.cones[:, 0:1]
-        chroma = None if state.rod is not None else state.cones[:, 1:2]
-        info = {}
+        night = states[0].rod is not None
+        lums = [st.rod if night else st.cones[:, 0:1] for st in states]
+        chromas = None if night else [st.cones[:, 1:2] for st in states]
+        infos: list = [{} for _ in states]
+        common: dict = {}
         if mode == "peli":
             s = float(self.param("csf.band_spacing_oct"))
             delta = float(self.param("csf.soft_threshold_log10"))
-            lum, chroma, info = peli_csf(lum, chroma, dpp, acuity, state.acuity_map, b_frac, c_peak, s, delta,
-                                         taper, ratio)
-            info.update(band_spacing_oct=s, soft_threshold_log10=delta, per_pixel_acuity=state.acuity_map is not None)
+            from zebrasight.eye.ops import _pad_amount
+
+            # flatten to single images: (state index, sample index within that state's batch)
+            items = [(i, j) for i, x in enumerate(lums) for j in range(x.shape[0])]
+            one = lambda t, j: None if t is None else t[j : j + 1]  # noqa: E731
+            sizes = [(lums[i].shape[-2] + 2 * _pad_amount(lums[i].shape[-2]),
+                      lums[i].shape[-1] + 2 * _pad_amount(lums[i].shape[-1])) for i, _ in items]
+            res_l: list = [None] * len(items)
+            res_c: list = [None] * len(items)
+            buckets = size_buckets(sizes)
+            for bucket in buckets:
+                sel = [items[k] for k in bucket]
+                bl, bc, binfo = peli_csf_batch(
+                    [one(lums[i], j) for i, j in sel], None if chromas is None else [one(chromas[i], j) for i, j in sel],
+                    [states[i].deg_per_px for i, _ in sel], acuity, [one(states[i].acuity_map, j) for i, j in sel],
+                    b_frac, c_peak, s, delta, taper, ratio)
+                for n, k in enumerate(bucket):
+                    res_l[k] = bl[n]
+                    res_c[k] = bc[n] if bc is not None else None
+                    infos[items[k][0]] = binfo
+            lums = [torch.cat([res_l[k] for k, (i, _) in enumerate(items) if i == s_]) for s_ in range(len(states))]
+            if chromas is not None:
+                chromas = [torch.cat([res_c[k] for k, (i, _) in enumerate(items) if i == s_])
+                           for s_ in range(len(states))]
+            common = dict(band_spacing_oct=s, soft_threshold_log10=delta, n_buckets=len(buckets),
+                          per_pixel_acuity=states[0].acuity_map is not None)
         else:
-            lum = global_csf(lum, dpp, acuity, b, c, w, taper)
-            chroma = chroma_lowpass(chroma, dpp, ratio * acuity) if chroma is not None else None
-        if state.rod is not None:
-            state = state.evolve(rod=lum)
-        else:
-            state = state.evolve(cones=torch.cat([lum, chroma], dim=1))
-        self.record(state, mode=mode, regime=regime, acuity_cpd=acuity, b_cpd=b, c_peak=c, width_log10=w,
-                    cutoff_taper=taper, chroma_cutoff_cpd=None if state.rod is not None else ratio * acuity,
-                    nyquist_cpd=0.5 / dpp, **info)
-        return state
+            lums = [global_csf(x, st.deg_per_px, acuity, b, c, w, taper) for x, st in zip(lums, states)]
+            if chromas is not None:
+                chromas = [chroma_lowpass(x, st.deg_per_px, ratio * acuity) for x, st in zip(chromas, states)]
+        out = []
+        for i, st in enumerate(states):
+            st = st.evolve(rod=lums[i]) if night else st.evolve(cones=torch.cat([lums[i], chromas[i]], dim=1))
+            self.record(st, mode=mode, regime=regime, acuity_cpd=acuity, b_cpd=b, c_peak=c, width_log10=w,
+                        cutoff_taper=taper, chroma_cutoff_cpd=None if night else ratio * acuity,
+                        nyquist_cpd=0.5 / st.deg_per_px, **infos[i], **common)
+            out.append(st)
+        return out

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
 import kornia
@@ -71,6 +72,40 @@ class Pipeline(nn.Module):
         mask: (B,1,H,W), (1,H,W) or (H,W) region mask.
         meta: IDs (zebra_id, image_id, session_id, region); copied, never read by the maths.
         """
+        rgb, mask = self._prepare(img, mask, img_is_linear)
+        state = self._initial_state(rgb, mask, cond, cm_per_px, meta, img_is_linear)
+        for stage in self.stages:
+            state = stage(state)
+        return make_percept(state, self.eye_cfg)
+
+    @torch.no_grad()
+    def run_distances(
+        self,
+        img: torch.Tensor,
+        cm_per_px: float,
+        mask: torch.Tensor,
+        cond: ViewCond,
+        distances: Sequence[float],
+        meta: dict[str, Any] | None = None,
+        img_is_linear: bool = False,
+    ) -> list[Percept]:
+        """``run`` for one condition at several distances (cond.distance_m is replaced by each).
+
+        Same result as calling ``run`` per distance, except that the eye's batchable sub-stage
+        (the Peli CSF) processes all distances in one GPU pass; that only changes pixels near
+        the crop borders (tests/eye/test_batch.py). Input decoding is done once.
+        """
+        rgb, mask = self._prepare(img, mask, img_is_linear)
+        states = []
+        for d in distances:
+            st = self._initial_state(rgb, mask, replace(cond, distance_m=float(d)), cm_per_px, meta, img_is_linear)
+            for stage in self.stages[:-1]:  # everything before the eye (geometry, scene, atmosphere)
+                st = stage(st)
+            states.append(st)
+        states = self.stages[-1].forward_batch(states)
+        return [make_percept(st, self.eye_cfg) for st in states]
+
+    def _prepare(self, img, mask, img_is_linear):
         img = _as_bchw(img).to(self.device, COMPUTE_DTYPE)
         mask = _as_bchw(mask).to(self.device, COMPUTE_DTYPE)
         if img.shape[1] != 3:
@@ -78,13 +113,13 @@ class Pipeline(nn.Module):
         if mask.shape[0] != img.shape[0] or mask.shape[-2:] != img.shape[-2:]:
             raise ValueError(f"mask {tuple(mask.shape)} does not match img {tuple(img.shape)}")
         rgb = img if img_is_linear else kornia.color.rgb_to_linear_rgb(img.clamp(0, 1))
+        return rgb, mask
 
+    def _initial_state(self, rgb, mask, cond, cm_per_px, meta, img_is_linear) -> ViewState:
         state = ViewState(rgb=rgb, mask=mask, cond=cond, cm_per_px=float(cm_per_px), meta=dict(meta or {}))
         state.log.append({"stage": "input", "cm_per_px": float(cm_per_px), "srgb_decoded": not img_is_linear,
                           "device": str(self.device), "cond": cond.__dict__.copy()})
-        for stage in self.stages:
-            state = stage(state)
-        return make_percept(state, self.eye_cfg)
+        return state
 
 
 def _as_bchw(t: torch.Tensor) -> torch.Tensor:

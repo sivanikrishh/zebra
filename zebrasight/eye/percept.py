@@ -58,6 +58,7 @@ def make_percept(state: ViewState, eye_cfg: DictConfig) -> Percept:
 
     h, w = y.shape[-2:]
     size, display_limited = storage_size(h, w, state.deg_per_px, acuity, grid, spc, max_side)
+    display_limited = display_limited or state.display_limited  # working cap (geometry) or storage cap
     mask = state.mask
     if size != (h, w):
         y = gaussian_resize(y, size)

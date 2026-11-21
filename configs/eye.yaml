@@ -15,6 +15,8 @@ eye_stages: {dichromacy: true, motion: true, streak: true, csf: true, noise: tru
 working_grid:
   deg_per_px: {value: 0.01, unit: deg/px, grade: C, cite: null,
                note: "internal simulation grid; 0.01 deg/px gives Nyquist 50 cpd > 25 cpd max acuity"}
+  max_side: {value: 512, unit: px, grade: C, cite: null,
+             note: "working-image cap (speed/memory); close-range crops are coarsened, display_limited = True"}
 
 geometry:
   foreshortening: {value: false, grade: C, cite: null,
@@ -23,8 +25,10 @@ geometry:
 percept:
   samples_per_cycle: {value: 2.5, unit: "px per acuity cycle", grade: C, cite: null,
                       note: "storage grid = max(working grid, 1 / (2.5 x regime acuity)); Gaussian pre-filtered"}
-  max_side: {value: 1024, unit: px, grade: C, cite: null,
+  max_side: {value: 512, unit: px, grade: C, cite: null,
              note: "cap on the stored longer side; if it bites, Percept.display_limited = True"}
+  s_half_res: {value: true, grade: C, cite: null,
+               note: "store the S (chroma) channel at half resolution: chroma acuity is 0.5 x luminance acuity"}
 
 acuity:
   photopic: {value: 23.30, sweep: [16.5, 23.3, 25.0], unit: cpd, grade: A, cite: [timney1992, melin2016],
