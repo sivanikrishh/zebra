@@ -43,5 +43,13 @@ pytest
 | `docs/` | `architecture.md`, `eye_parameters.md` |
 | `vr/` | V's VR work |
 
+## Data and licence
+
+Photos: Wild Me **GZGC-IBEIS** (plains zebras, Nairobi National Park, 2015), licensed
+**CC BY-NC-ND 2.0** (Attribution, NonCommercial, NoDerivatives), organiser-provided. Put the archive at
+`data/raw/gzgc.coco.tar.gz` and run `python -m zebrasight.data.unpack`. Everything derived from
+these images (masks, percepts, QA grids, VR textures) is **internal – not for public display**
+until use of derived images is confirmed; charts of statistics are fine. See `docs/data_report.md`.
+
 See `docs/architecture.md` for the design rules and `docs/eye_parameters.md` for every
 parameter with its citation and evidence grade.
