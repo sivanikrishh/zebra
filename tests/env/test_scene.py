@@ -52,6 +52,28 @@ def test_shadow_same_place_at_every_distance():
     assert ((a >= 0.5) == (b_small >= 0.5)).float().mean() > 0.95
 
 
+@pytest.mark.parametrize("cid,frac", [("o20", 0.20), ("o40", 0.40), ("o60", 0.60)])
+def test_occlusion_fraction_and_mask_update(cid, frac):
+    st = _state(make_cond(cid, 20.0))
+    out = _stage()(st)
+    before = (st.mask > 0.5).sum()
+    after = (out.mask > 0.5).sum()
+    assert abs(float(1 - after / before) - frac) < 0.05  # visible coat shrinks by the set fraction
+    hidden = (st.mask > 0.5) & (out.mask < 0.5)
+    grass = torch.tensor(ENV.scene.occlusion.grass_rgb.value).view(1, 3, 1, 1)
+    col = out.rgb.permute(0, 2, 3, 1)[hidden[:, 0]].mean(0)
+    assert torch.allclose(col, grass.view(3), rtol=0.25)  # occluded pixels are grass-coloured
+    assert torch.equal(out.rgb[(out.mask > 0.5).expand_as(out.rgb)], st.rgb[(out.mask > 0.5).expand_as(st.rgb)])
+
+
+def test_occlusion_reproducible_and_id_dependent():
+    a = _stage()(_state(make_cond("o40", 20.0))).mask
+    b = _stage()(_state(make_cond("o40", 50.0))).mask  # distance does not change the pattern
+    c = _stage()(_state(make_cond("o40", 20.0), meta={"image_id": "img2", "region": "flank"})).mask
+    assert torch.equal(a, b)
+    assert not torch.equal(a, c)
+
+
 def test_core_conditions_untouched():
     for cid in ("c0", "c1", "c4", "c8", "c9"):
         st = _state(make_cond(cid, 20.0))
