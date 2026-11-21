@@ -1,0 +1,17 @@
+# Melin, Kline, Hiramatsu & Caro 2016, PLOS ONE 11(1): e0145679, Table 2 (zebra viewer).
+# doi:10.1371/journal.pone.0145679
+# Stripe width (cm) -> maximum distance (m) at which a zebra resolves the stripes.
+# Values transcribed from the task brief. The table itself is an image on the PLOS page;
+# the Results text agrees after rounding (plains widest: 140 m day, 75 m dusk, 10 m night;
+# plains narrowest: 32 m day). tests/test_configs.py checks every row against
+# d = 2 * width / tan(1 / acuity) with the acuities in configs/eye.yaml.
+source: "Melin et al. 2016 PLOS ONE 11:e0145679, Table 2"
+doi: "10.1371/journal.pone.0145679"
+acuity_cpd: {day: 23.30, dusk: 12.46, night: 1.61}
+rows:
+  - {species: plains,   stripe: widest,    width_cm: 5.23, day_m: 139.64, dusk_m: 74.67, night_m: 9.65}
+  - {species: plains,   stripe: narrowest, width_cm: 1.19, day_m: 31.77,  dusk_m: 16.99, night_m: 2.20}
+  - {species: grevys,   stripe: widest,    width_cm: 2.83, day_m: 75.56,  dusk_m: 40.41, night_m: 5.22}
+  - {species: grevys,   stripe: narrowest, width_cm: 1.00, day_m: 26.70,  dusk_m: 14.28, night_m: 1.84}
+  - {species: mountain, stripe: widest,    width_cm: 6.38, day_m: 170.34, dusk_m: 91.09, night_m: 11.77}
+  - {species: mountain, stripe: narrowest, width_cm: 1.41, day_m: 37.65,  dusk_m: 20.13, night_m: 2.60}

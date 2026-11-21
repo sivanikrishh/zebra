@@ -1,0 +1,100 @@
+# Zebra-eye parameters. All values are HORSE PROXIES: no zebra spatial-resolving-power
+# estimate exists yet (Wits Project Plains Zebra, retina sub-project: planned, unpublished).
+#
+# Every parameter: value, sweep, unit, grade, cite (key into refs), note.
+#   grade A = measured in horse
+#   grade B = derived in a published model
+#   grade C = our assumption: must be swept, goes on the limits slide
+# Human-readable version with discussion: docs/eye_parameters.md (keep in sync).
+
+eye_order: [dichromacy, streak, csf, motion, noise]
+
+working_grid:
+  deg_per_px: {value: 0.01, unit: deg/px, grade: C, cite: null,
+               note: "internal simulation grid; 0.01 deg/px gives Nyquist 50 cpd > 25 cpd max acuity"}
+
+acuity:
+  photopic: {value: 23.30, sweep: [16.5, 23.3, 25.0], unit: cpd, grade: A, cite: [timney1992, melin2016],
+             note: "best horse acuity; Melin 2016 used it as zebra photopic acuity (citing Veilleux & Kirk 2014). 16.5 = Harman 1999 streak value"}
+  mesopic:  {value: 12.46, sweep: [8.0, 15.0], unit: cpd, grade: B, cite: melin2016,
+             note: "Melin set zebra mesopic midway between photopic and scotopic: (23.30 + 1.61)/2 = 12.455"}
+  scotopic: {value: 1.61, sweep: [1.0, 2.5], unit: cpd, grade: B, cite: melin2016,
+             note: "Melin: scaled relative to cat by eye size; matches Melin Table 2 night distances"}
+  individual_variation: {value: null, unit: null, grade: A, cite: evans2007,
+             note: "streak ganglion-cell density varies with breed and nasal length (30 horses); justifies the photopic sweep"}
+
+luminance:
+  day:   {value: 16.0,   unit: cd/m2, grade: B, cite: [pasternak1981, melin2016], note: "cat CSF photopic level used by Melin"}
+  dusk:  {value: 0.16,   unit: cd/m2, grade: B, cite: [pasternak1981, melin2016], note: "cat CSF mesopic level"}
+  dawn:  {value: 0.16,   unit: cd/m2, grade: C, cite: null, note: "assumed equal to dusk regime"}
+  night: {value: 1.6e-5, unit: cd/m2, grade: B, cite: [pasternak1981, melin2016], note: "cat CSF scotopic level (moonless night)"}
+
+cones:
+  S_peak: {value: 430, unit: nm, grade: B, cite: melin2016, note: "Melin used 430 nm S for all species"}
+  L_peak: {value: 545, sweep: [539, 545], unit: nm, grade: B, cite: [melin2016, carroll2001, yokoyama1999],
+           note: "545 = Melin / in-vitro (Yokoyama & Radlwimmer 1999); 539 = horse ERG (Carroll 2001, grade A, with S at 428)"}
+  template: {value: govardovskii_A1, unit: null, grade: B, cite: govardovskii2000, note: "A1 pigment template"}
+  rod_peak: {value: 500, unit: nm, grade: C, cite: null, note: "generic mammalian rhodopsin ~500 nm; no horse measurement found"}
+
+colour:
+  threshold_cd_m2: {value: 0.02, unit: cd/m2, grade: A, cite: roth2008,
+                    note: "lowest level at which a horse still discriminated colour. Below it: rod-only, no S channel. Dusk 0.16 is above it, so colour stays on at dusk"}
+  neutral_point_nm: {value: 480, unit: nm, grade: A, cite: [geisbauer2004, roth2007], note: "test only: an L/S model must have its neutral point near here"}
+  chroma_acuity_ratio: {value: 0.5, sweep: [0.3, 1.0], unit: "x luminance acuity", grade: C, cite: null,
+                        note: "no horse chromatic acuity data; S channel low-passed at this fraction of luminance acuity"}
+
+csf:
+  form: {value: log_parabola, grade: B, cite: melin2016,
+         note: "Melin fitted cat CSFs (Pasternak & Merigan 1981) with a parabola in log scale, coefficients a slope, b peak frequency, c peak sensitivity, and shifted b by acuity difference; a held constant"}
+  constraint: {value: "S(acuity) = 1", grade: B, cite: melin2016, note: "sensitivity 1 (contrast 100%) at the resolution limit"}
+  b_peak_fraction: {value: 0.10, sweep: [0.08, 0.15], unit: "x acuity", grade: C, cite: null,
+                    note: "Melin did not report a, b, c; Pasternak & Merigan 1981 peak values not accessible (paywalled, no abstract)"}
+  c_peak_sensitivity: {value: 50, sweep: [20, 100], unit: "1/contrast", grade: C, cite: null, note: "same reason as b"}
+  cat_acuity_cpd: {value: 5.81, unit: cpd, grade: B, cite: melin2016, note: "Melin's cat reference acuity"}
+
+contrast:
+  weber_fraction: {value: [0.42, 0.45], unit: null, grade: A, cite: geisbauer2004,
+                   note: "large-field brightness discrimination, two Haflingers; upper bound for the noise sweep only, not a grating threshold"}
+  chance_below_log_units: {value: 0.2, unit: log10 luminance, grade: A, cite: macuda1999,
+                   note: "near-chance below 0.2 log-unit luminance difference; large-field task"}
+
+streak:
+  elevation_deg: {value: 0.0, unit: deg, grade: A, cite: [timney1992, guo2000], note: "horizontal band at el 0; acuity limited by streak ganglion density"}
+  peak_density: {value: 4000, unit: cells/mm2, grade: A, cite: guo2000}
+  periphery_floor: {value: 0.16, unit: "x streak acuity", grade: A, cite: harman1999, note: "periphery 2.7 cpd / streak 16.5 cpd"}
+  sigma_el_deg: {value: 5.0, sweep: [3.0, 10.0], unit: deg, grade: C, cite: null, note: "vertical Gaussian width of the streak"}
+  az_falloff_at_90: {value: 0.50, sweep: [0.30, 0.70], unit: "x peak acuity at 90 deg azimuth", grade: C, cite: null,
+                     note: "linear falloff from az 0 to this fraction at 90 deg"}
+
+temporal:
+  integration_ms_day:   {value: 30,  sweep: [15, 60], unit: ms, grade: C, cite: null,
+                         note: "no horse critical flicker fusion value found; human reference cones ~60 Hz"}
+  integration_ms_night: {value: 100, unit: ms, grade: C, cite: null, note: "human reference rods ~15 Hz"}
+
+noise:
+  model: {value: poisson_plus_gaussian, grade: C, cite: null, note: "Poisson photon noise scaled by luminance + Gaussian neural noise"}
+  neural_sigma: {value: null, sweep: null, unit: contrast, grade: C, cite: null, note: "set in phase 2, bounded above by the Weber fraction"}
+
+input:
+  photo_colour: {value: srgb_uncalibrated, grade: C, cite: null,
+                 note: "our photos have no colour chart (Melin used a GretagMacbeth chart), so cone catches are approximate"}
+
+refs:
+  timney1992:     {text: "Timney B, Keil K (1992) Visual acuity in the horse. Vision Res 32(12):2289-2293", doi: "10.1016/0042-6989(92)90092-W", verified: true}
+  melin2016:      {text: "Melin AD, Kline DW, Hiramatsu C, Caro T (2016) Zebra stripes through the eyes of their predators, zebras, and humans. PLOS ONE 11(1):e0145679", doi: "10.1371/journal.pone.0145679", verified: true}
+  evans2007:      {text: "Evans KE, McGreevy PD (2007) The distribution of ganglion cells in the equine retina and its relationship to skull morphology. Anat Histol Embryol 36(2):151-156", doi: "10.1111/j.1439-0264.2006.00749.x", verified: true}
+  pasternak1981:  {text: "Pasternak T, Merigan WH (1981) The luminance dependence of spatial vision in the cat. Vision Res 21(9):1333-1339", doi: "10.1016/0042-6989(81)90240-6", verified: true}
+  carroll2001:    {text: "Carroll J, Murphy CJ, Neitz M, Ver Hoeve JN, Neitz J (2001) Photopigment basis for dichromatic color vision in the horse. J Vis 1(2):80-87", doi: "10.1167/1.2.2", verified: true}
+  yokoyama1999:   {text: "Yokoyama S, Radlwimmer FB (1999) The molecular genetics of red and green color vision in mammals. Genetics 153(2):919-932", doi: "10.1093/genetics/153.2.919", verified: true,
+                   note: "DOI verified; the 545 nm horse value was seen only in a secondary table (Yokoyama et al. 2005), not in the paper's text"}
+  govardovskii2000: {text: "Govardovskii VI, Fyhrquist N, Reuter T, Kuzmin DG, Donner K (2000) In search of the visual pigment template. Vis Neurosci 17(4):509-528", doi: "10.1017/S0952523800174036", verified: true}
+  roth2008:       {text: "Roth LSV, Balkenius A, Kelber A (2008) The absolute threshold of colour vision in the horse. PLoS ONE 3(11):e3711", doi: "10.1371/journal.pone.0003711", verified: true}
+  roth2007:       {text: "Roth LSV, Balkenius A, Kelber A (2007) Colour perception in a dichromat. J Exp Biol 210(16):2795-2800", doi: "10.1242/jeb.007377", verified: true}
+  geisbauer2004:  {text: "Geisbauer G, Griebel U, Schmid A, Timney B (2004) Brightness discrimination and neutral point testing in the horse. Can J Zool 82(4):660-670", doi: "10.1139/z04-026", verified: true,
+                   note: "DOI found only via a citation aggregator; not confirmed on the publisher site"}
+  macuda1999:     {text: "Macuda T, Timney B (1999) Luminance and chromatic discrimination in the horse (Equus caballus). Behav Processes 44(3):301-307", doi: "10.1016/S0376-6357(98)00039-4", verified: true}
+  harman1999:     {text: "Harman AM, Moore S, Hoskins R, Keller P (1999) Horse vision and an explanation for the visual behaviour originally explained by the 'ramp retina'. Equine Vet J 31(5):384-390", doi: "10.1111/j.2042-3306.1999.tb03837.x", verified: true}
+  guo2000:        {text: "Guo X, Sugita S (2000) Topography of ganglion cells in the retina of the horse. J Vet Med Sci 62(11):1145-1150", doi: "10.1292/jvms.62.1145", verified: true}
+  veilleux2014:   {text: "Veilleux CC, Kirk EC (2014) Visual acuity in mammals: effects of eye size and ecology. Brain Behav Evol 83(1):43-53", doi: "10.1159/000357830", verified: true,
+                   note: "cited by Melin 2016 as its source for the 23.3 cpd horse value"}
+  wits_zebra:     {text: "Wits University, Project Plains Zebra, retina sub-project (web page)", url: "https://www.wits.ac.za/admintest/project-plains-zebra/sub-projects/retina/", verified: true}

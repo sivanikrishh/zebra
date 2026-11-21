@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zebrasight"
+version = "0.1.0"
+description = "Simulate what a zebra's eye sees of another zebra's coat across distance and conditions"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+# torch/torchvision come from the PyTorch CUDA index, not PyPI:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+dependencies = [
+    "torch>=2.4",
+    "torchvision",
+    "kornia",
+    "scikit-image",
+    "scipy",
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "zarr",
+    "hydra-core",
+    "omegaconf",
+    "matplotlib",
+    "opencv-python-headless",
+    "tqdm",
+    "gudhi",
+    "colour-science",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["zebrasight*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
