@@ -87,5 +87,7 @@ def test_stage_order_enforced(bad):
 def test_grid_config():
     grid = load_config("grid")
     assert len(grid.distances_m["values"]) == 16
-    assert len(grid.conditions) == 10
+    assert list(grid.core_conditions) == [f"c{i}" for i in range(10)]
+    assert list(grid.extra_conditions) == ["s25", "s50", "o20", "o40", "o60", "m2", "m5"]
+    assert set(grid.conditions) == set(grid.core_conditions) | set(grid.extra_conditions)
     assert list(grid.regions) == ["flank", "face", "rump"]

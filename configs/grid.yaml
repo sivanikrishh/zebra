@@ -9,20 +9,33 @@ distances_m:
   values: [2.0, 2.719, 3.696, 5.024, 6.829, 9.283, 12.619, 17.154, 23.318, 31.698,
            43.089, 58.573, 79.621, 108.234, 147.128, 200.0]
 
-# beta_haze: atmospheric extinction coefficient, 1/m.
+# beta_haze: atmospheric extinction coefficient at 550 nm, 1/m (Koschmieder visual range 3.912/beta:
+#   c0 ~20 km, c1 ~2 km, c2 ~390 m, c3 ~130 m). aerosol: clear | haze | dust (configs/env.yaml).
 # azimuth_view_deg: angle of the viewed flank away from side-on (0 = side-on).
 # luminance_cd_m2: from configs/eye.yaml luminance block.
+# Extra condition fields (default 0 / none): shadow_frac, occlusion_frac, speed_mps, background.
 conditions:
-  c0: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.0002, azimuth_view_deg: 0,  note: "reference: clear midday, side-on"}
-  c1: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.002,  azimuth_view_deg: 0,  note: "light haze"}
-  c2: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.01,   azimuth_view_deg: 0,  note: "moderate haze"}
-  c3: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.03,   azimuth_view_deg: 0,  note: "heavy haze"}
+  c0: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.0002, azimuth_view_deg: 0,  aerosol: clear, note: "reference: clear midday, side-on"}
+  c1: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.002,  azimuth_view_deg: 0,  aerosol: haze,  note: "hazy (fine aerosol, alpha 1.3)"}
+  c2: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.01,   azimuth_view_deg: 0,  aerosol: dust,  note: "dusty (mineral dust, alpha 0.2)"}
+  c3: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.03,   azimuth_view_deg: 0,  aerosol: dust,  note: "dust storm"}
   c4: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.0002, azimuth_view_deg: 30, note: "view azimuth 30 deg"}
   c5: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.0002, azimuth_view_deg: 60, note: "view azimuth 60 deg"}
   c6: {light: day,   luminance_cd_m2: 16.0,    beta_haze: 0.0002, azimuth_view_deg: 75, note: "view azimuth 75 deg"}
   c7: {light: dawn,  luminance_cd_m2: 0.16,    beta_haze: 0.0002, azimuth_view_deg: 0,  note: "dawn (= dusk regime, grade C)"}
   c8: {light: dusk,  luminance_cd_m2: 0.16,    beta_haze: 0.0002, azimuth_view_deg: 0,  note: "dusk"}
   c9: {light: night, luminance_cd_m2: 1.6e-5,  beta_haze: 0.0002, azimuth_view_deg: 0,  note: "moonless night"}
+  # extra conditions (not in c0-c9): clear midday side-on like c0, plus one scene/motion effect
+  s25: {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, shadow_frac: 0.25, note: "25% of the region in cast shadow"}
+  s50: {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, shadow_frac: 0.50, note: "50% in cast shadow"}
+  o20: {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, occlusion_frac: 0.20, note: "20% occluded (grass, neighbours)"}
+  o40: {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, occlusion_frac: 0.40, note: "40% occluded"}
+  o60: {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, occlusion_frac: 0.60, note: "60% occluded"}
+  m2:  {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, speed_mps: 2.0, note: "moving 2 m/s across the line of sight"}
+  m5:  {light: day, luminance_cd_m2: 16.0, beta_haze: 0.0002, azimuth_view_deg: 0, speed_mps: 5.0, note: "moving 5 m/s"}
+
+core_conditions: [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9]
+extra_conditions: [s25, s50, o20, o40, o60, m2, m5]
 
 # Conditions with identical model inputs: computed once, stored as an alias.
 # c7 dawn and c8 dusk share the luminance regime (0.16 cd/m2, mesopic, grade C).

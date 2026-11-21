@@ -8,7 +8,7 @@ from typing import Any
 
 import kornia
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 import zebrasight.env  # noqa: F401  (registers scene, atmosphere)
@@ -39,18 +39,24 @@ class Pipeline(nn.Module):
         stages: Sequence[str],
         eye_cfg: DictConfig | None = None,
         device: torch.device | str | None = None,
+        env_cfg: DictConfig | None = None,
     ):
         super().__init__()
         stages = list(stages)
         check_order(stages)
         self.eye_cfg = eye_cfg if eye_cfg is not None else load_config("eye")
+        self.env_cfg = env_cfg if env_cfg is not None else load_config("env")
+        # stages see eye.yaml plus env.yaml under "env" (scene/atmosphere read self.param("env.…"))
+        stage_cfg = OmegaConf.merge(self.eye_cfg, {"env": self.env_cfg})
         self.device = torch.device(device) if device is not None else default_device()
-        self.stages = nn.ModuleList(STAGES[n](self.eye_cfg) for n in stages)
+        self.stages = nn.ModuleList(STAGES[n](stage_cfg) for n in stages)
 
     @classmethod
     def from_grid(cls, phase: str = "phase1", **kwargs: Any) -> "Pipeline":
         grid = load_config("grid")
-        return cls(list(grid[phase].stages), **kwargs)
+        node = grid[phase]  # "phase1" (a block with .stages) or "all_stages" (a list)
+        stages = node.stages if OmegaConf.is_dict(node) else node
+        return cls(list(stages), **kwargs)
 
     @property
     def stage_names(self) -> list[str]:

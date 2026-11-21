@@ -21,8 +21,8 @@ working_grid:
                       note: "working grid = max(0.01, 1/(5 x regime acuity)) deg/px: day unchanged, dusk ~1.6x, night ~12x coarser"}
 
 geometry:
-  foreshortening: {value: false, grade: C, cite: null,
-                   note: "hook: compress flank width by cos(view azimuth); off in phase 1"}
+  foreshortening: {value: true, grade: C, cite: null,
+                   note: "compress the coat along the body axis by cos(view azimuth) before resampling (planar-flank assumption); c4-c6"}
 
 percept:
   samples_per_cycle: {value: 2.5, unit: "px per acuity cycle", grade: C, cite: null,

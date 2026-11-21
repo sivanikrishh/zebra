@@ -36,6 +36,10 @@ class ViewCond:
     speed_mps: float = 0.0  # relative motion of target across the line of sight
     motion_dir_deg: float = 0.0  # image-plane direction of that motion, 0 = horizontal, CCW
     seed: int = 0
+    aerosol: str = "clear"  # clear | haze | dust (atmosphere stage; clear = untouched)
+    shadow_frac: float = 0.0  # share of the region in cast shadow (scene stage)
+    occlusion_frac: float = 0.0  # share of the region hidden by grass / neighbours (scene stage)
+    background: str = "none"  # none | short_green | tall_dry | bare_dust (scene stage)
 
 
 @dataclass

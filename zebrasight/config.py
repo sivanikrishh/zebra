@@ -26,7 +26,7 @@ def distances(grid: DictConfig | None = None) -> np.ndarray:
 
 
 def make_cond(cond_id: str, distance_m: float, grid: DictConfig | None = None, **overrides) -> ViewCond:
-    """Build a ViewCond from a condition id in grid.yaml (c0-c9)."""
+    """Build a ViewCond from a condition id in grid.yaml (c0-c9 and the extra s/o/m conditions)."""
     grid = grid if grid is not None else load_config("grid")
     c = grid.conditions[cond_id]
     fields = dict(
@@ -37,5 +37,9 @@ def make_cond(cond_id: str, distance_m: float, grid: DictConfig | None = None, *
         beta_haze=float(c.beta_haze),
         azimuth_view_deg=float(c.azimuth_view_deg),
     )
+    for key, cast in (("aerosol", str), ("shadow_frac", float), ("occlusion_frac", float), ("speed_mps", float),
+                      ("background", str)):
+        if key in c:
+            fields[key] = cast(c[key])
     fields.update(overrides)
     return ViewCond(**fields)

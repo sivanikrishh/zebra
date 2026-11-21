@@ -14,8 +14,12 @@ Working-size cap (``working_grid.max_side``, 512): if the working image's longer
 (close range), it is coarsened to fit and ``display_limited`` = True; the log records the
 effective resolvable cpd, 1 / (2.5 deg_per_px). This bounds time and memory per percept.
 
-Hook (off in phase 1, ``geometry.foreshortening``): a flank viewed at
-``cond.azimuth_view_deg`` away from side-on is compressed horizontally by cos(azimuth).
+Viewing angle (``geometry.foreshortening``, on): a flank viewed at ``cond.azimuth_view_deg``
+(phi) away from side-on is compressed along the body axis (image x for side views) by cos(phi)
+BEFORE angular resampling, so stripe widths shrink by cos(phi) (c4/c5/c6 = 30/60/75 deg; c0
+phi = 0 is unchanged). The factor is logged as ``foreshortening_factor``. A planar flank is
+assumed (grade C); scripts/validate_oblique.py is the hook for checking it against real
+GZGC frontleft/backleft photos.
 """
 
 from __future__ import annotations
@@ -57,6 +61,7 @@ class Geometry(Stage):
         rgb, mask = state.rgb, state.mask
         grid = float(self.param("working_grid.deg_per_px"))
         do_foreshorten = bool(self.param("geometry.foreshortening"))
+        fore = math.cos(math.radians(c.azimuth_view_deg)) if do_foreshorten else 1.0
         if do_foreshorten and c.azimuth_view_deg:
             rgb, mask = foreshorten(rgb, mask, c.azimuth_view_deg)
 
@@ -88,6 +93,7 @@ class Geometry(Stage):
         self.record(state, deg_per_px_src=dpp_src, deg_per_px=dpp, working_grid_deg_per_px=grid,
                     resampled=resampled, size_in=(h, w), size_out=(h2, w2),
                     source_limited=source_limited, foreshortening=do_foreshorten,
+                    view_azimuth_deg=c.azimuth_view_deg, foreshortening_factor=fore,
                     working_max_side=max_side, display_limited=display_limited,
                     effective_cpd=(1.0 / (2.5 * dpp)) if display_limited else None)
         return state
