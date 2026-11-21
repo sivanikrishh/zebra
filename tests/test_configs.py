@@ -10,7 +10,7 @@ from zebrasight.config import distances, load_config
 GRADES = {"A", "B", "C"}
 # grade-C values deliberately not swept in phase 1 (listed on the limits slide)
 FIXED_C = {"working_grid.deg_per_px", "temporal.integration_ms_night", "cones.rod_peak", "luminance.dawn",
-           "percept.max_side"}
+           "percept.max_side", "percept.samples_per_cycle"}
 
 
 def test_distances_log_spaced():

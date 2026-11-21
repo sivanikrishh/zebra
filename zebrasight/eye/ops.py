@@ -63,11 +63,27 @@ def fft_conv(x: torch.Tensor, kernel: torch.Tensor) -> torch.Tensor:
     return y[..., ph : ph + x.shape[-2], pw : pw + x.shape[-1]]
 
 
-def area_resize(x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-    """Anti-aliased downsample by area averaging."""
-    if tuple(x.shape[-2:]) == tuple(size):
+AA_SIGMA_PER_FACTOR = 0.4  # Gaussian pre-filter sigma, in source px per unit downsampling factor
+
+
+def gaussian_resize(x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
+    """Anti-aliased downsample: Gaussian pre-filter (sigma = 0.4 x factor source px per axis,
+    transfer ~0.45 at the new Nyquist, ~0.17 at 1.5x it) then bilinear sampling.
+    Only downsamples; an equal size returns x unchanged."""
+    h, w = x.shape[-2:]
+    if (h, w) == tuple(size):
         return x
-    return F.interpolate(x, size=size, mode="area")
+    if size[0] > h or size[1] > w:
+        raise ValueError(f"gaussian_resize only downsamples: {(h, w)} -> {tuple(size)}")
+    sy = AA_SIGMA_PER_FACTOR * h / size[0] if size[0] < h else 0.0
+    sx = AA_SIGMA_PER_FACTOR * w / size[1] if size[1] < w else 0.0
+    xp, pads = reflect_pad(x)
+    hp, wp = xp.shape[-2:]
+    fy = torch.fft.fftfreq(hp, device=x.device)[:, None]
+    fx = torch.fft.rfftfreq(wp, device=x.device)[None, :]
+    g = torch.exp(-2.0 * math.pi**2 * ((sy * fy) ** 2 + (sx * fx) ** 2))
+    blurred = unpad(torch.fft.irfft2(torch.fft.rfft2(xp) * g, s=(hp, wp)), pads)
+    return F.interpolate(blurred, size=size, mode="bilinear", align_corners=False)
 
 
 def is_binary(mask: torch.Tensor) -> bool:

@@ -76,6 +76,7 @@ class Percept:
     meta: dict[str, Any]
     log: list[dict[str, Any]]
     source_limited: bool = False
+    display_limited: bool = False  # storage size cap coarsened the grid below 2.5 px per acuity cycle
 
     def for_storage(self) -> "Percept":
         def half(t: torch.Tensor | None) -> torch.Tensor | None:

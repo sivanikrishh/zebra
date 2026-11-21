@@ -83,7 +83,7 @@ def test_csf_constraint_and_cutoff():
     s = csf_sensitivity(torch.tensor([b, 23.3]), b, c, w)
     torch.testing.assert_close(s, torch.tensor([50.0, 1.0]), rtol=1e-4, atol=1e-4)
 
-    def grating(cpd, dpp=0.0115, h=64, w=256):  # sRGB sinusoid with Michelson ~1 in linear light
+    def grating(cpd, dpp=0.0115, h=64, w=256):  # LINEAR sinusoid (an sRGB one has harmonics that alias)
         x = torch.arange(w, dtype=torch.float32)
         g = 0.5 + 0.5 * torch.sin(2 * torch.pi * cpd * dpp * x)
         return g.view(1, 1, 1, w).expand(1, 3, h, w).clone()
@@ -91,8 +91,8 @@ def test_csf_constraint_and_cutoff():
     # 1 cm/px at 50 m -> 0.0115 deg/px: source grid kept, Nyquist 44 cpd
     fine = grating(30.0)  # above the 23.3 cpd acuity: removed
     coarse = grating(1.0)  # below the peak b = 2.33 cpd: passed
-    p_fine = pipe(**NO_NOISE).run(fine, 1.0, ones_mask(fine), cond("c0", 50.0))
-    p_coarse = pipe(**NO_NOISE).run(coarse, 1.0, ones_mask(coarse), cond("c0", 50.0))
+    p_fine = pipe(**NO_NOISE).run(fine, 1.0, ones_mask(fine), cond("c0", 50.0), img_is_linear=True)
+    p_coarse = pipe(**NO_NOISE).run(coarse, 1.0, ones_mask(coarse), cond("c0", 50.0), img_is_linear=True)
     assert p_fine.y.std() / p_fine.y.mean() < 0.01
     assert p_coarse.y.std() / p_coarse.y.mean() > 0.5
 

@@ -21,7 +21,10 @@ geometry:
                    note: "hook: compress flank width by cos(view azimuth); off in phase 1"}
 
 percept:
-  max_side: {value: 256, unit: px, grade: C, cite: null, note: "output area-downsampled so the longer side is at most this"}
+  samples_per_cycle: {value: 2.5, unit: "px per acuity cycle", grade: C, cite: null,
+                      note: "storage grid = max(working grid, 1 / (2.5 x regime acuity)); Gaussian pre-filtered"}
+  max_side: {value: 1024, unit: px, grade: C, cite: null,
+             note: "cap on the stored longer side; if it bites, Percept.display_limited = True"}
 
 acuity:
   photopic: {value: 23.30, sweep: [16.5, 23.3, 25.0], unit: cpd, grade: A, cite: [timney1992, melin2016],
@@ -63,8 +66,14 @@ csf:
                     note: "Melin did not report a, b, c; Pasternak & Merigan 1981 peak values not accessible (paywalled, no abstract)"}
   c_peak_sensitivity: {value: 50, sweep: [20, 100], unit: "1/contrast", grade: C, cite: null, note: "same reason as b"}
   cat_acuity_cpd: {value: 5.81, unit: cpd, grade: B, cite: melin2016, note: "Melin's cat reference acuity"}
-  contrast_threshold: {value: true, sweep: [true, false], unit: null, grade: C, cite: null,
-                       note: "zero FFT components with contrast x S(f) < 1 above b. Per-coefficient contrast depends on how spread the pattern's spectrum is (irregular stripes spread energy), see docs/eye_parameters.md"}
+  mode: {value: peli, sweep: [peli, global], unit: null, grade: C, cite: peli1990,
+         note: "peli = local band-limited contrast threshold (default); global = per-FFT-coefficient threshold, comparison only"}
+  band_spacing_oct: {value: 0.5, sweep: [0.5, 1.0], unit: octaves, grade: C, cite: peli1990,
+                     note: "raised-cosine log-frequency bands; Peli 1990 used 1 octave"}
+  soft_threshold_log10: {value: 0.05, sweep: [0.02, 0.1], unit: log10 visibility, grade: C, cite: null,
+                         note: "half-width of the soft threshold on log10(|c_k| S): kept fraction ramps 0 -> 1 over 10^-0.05 .. 10^+0.05"}
+  cutoff_taper: {value: 0.02, sweep: [0.01, 0.05], unit: "x acuity", grade: C, cite: null,
+                 note: "raised-cosine roll-off from A to A(1+taper): nothing beyond acuity survives; avoids FFT-bin edge effects"}
 
 contrast:
   weber_fraction: {value: [0.42, 0.45], unit: null, grade: A, cite: geisbauer2004,
@@ -114,4 +123,8 @@ refs:
   guo2000:        {text: "Guo X, Sugita S (2000) Topography of ganglion cells in the retina of the horse. J Vet Med Sci 62(11):1145-1150", doi: "10.1292/jvms.62.1145", verified: true}
   veilleux2014:   {text: "Veilleux CC, Kirk EC (2014) Visual acuity in mammals: effects of eye size and ecology. Brain Behav Evol 83(1):43-53", doi: "10.1159/000357830", verified: true,
                    note: "cited by Melin 2016 as its source for the 23.3 cpd horse value"}
+  peli1990:       {text: "Peli E (1990) Contrast in complex images. J Opt Soc Am A 7(10):2032-2040", doi: "10.1364/JOSAA.7.002032", verified: true}
+  caves2018:      {text: "Caves EM, Johnsen S (2018) AcuityView: an R package for portraying the effects of visual acuity on scenes observed by an animal. Methods Ecol Evol 9(3):793-797", doi: "10.1111/2041-210X.12911", verified: true}
+  johnson2020:    {text: "Johnson NP, Gregorich SM, Passaglia CL (2020) Spatiotemporal contrast sensitivity of Brown-Norway rats under scotopic and photopic illumination. Neuroscience 449:63-73", doi: "10.1016/j.neuroscience.2020.09.056", verified: true,
+                   note: "PMC7642022; abstract/Table 1: peak 0.17 cpd, limit 1.6 cpd (Results text: 0.15 / 1.7)"}
   wits_zebra:     {text: "Wits University, Project Plains Zebra, retina sub-project (web page)", url: "https://www.wits.ac.za/admintest/project-plains-zebra/sub-projects/retina/", verified: true}

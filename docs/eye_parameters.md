@@ -37,7 +37,10 @@ Evidence grades:
 | CSF peak frequency b | 0.10 | 0.08 – 0.15 | × acuity | C | Melin did not report a, b, c |
 | CSF peak sensitivity c | 50 | 20 – 100 | 1/contrast | C | same |
 | Cat reference acuity | 5.81 | — | cpd | B | Melin 2016 |
-| CSF contrast threshold | on | on / off | — | C | zero components above b with contrast × S(f) < 1; see the note below |
+| CSF mode | peli | peli / global | — | C | Peli 1990 local band-limited contrast threshold; global = per-FFT-coefficient (comparison only). See the note below |
+| CSF band spacing | 0.5 | 0.5 – 1.0 | octaves | C | raised-cosine log-frequency bands (Peli used 1 octave) |
+| Soft threshold half-width | 0.05 | 0.02 – 0.1 | log10 visibility | C | kept fraction ramps 0 → 1 between visibility 10^-0.05 and 10^+0.05 |
+| CSF cut-off taper | 0.02 | 0.01 – 0.05 | × acuity | C | raised-cosine roll-off from A to 1.02 A |
 | Weber fraction (brightness) | 0.42 – 0.45 | upper bound for noise | — | A | Geisbauer et al. 2004 (large-field task, 2 horses) |
 | Luminance discrimination limit | 0.2 | upper bound for noise | log units | A | Macuda & Timney 1999: near chance below 0.2 log units (large field) |
 | Streak elevation | 0 | — | deg | A | Timney & Keil 1992 (acuity limited by streak ganglion density); Guo & Sugita 2000 |
@@ -52,7 +55,9 @@ Evidence grades:
 | Neural noise σ | 0.01 | 0 – 0.05 | × mean signal | C | bounded above by the 0.42 Weber fraction |
 | Working grid | 0.01 | — (fixed) | deg/px | C | Nyquist 50 cpd > max acuity 25 |
 | Foreshortening | off | — | — | C | hook: width × cos(view azimuth); phase 2 |
-| Percept max side | 256 | — (fixed) | px | C | output area-downsampled. At close range the output Nyquist falls below the acuity (e.g. 5 m at 0.1 cm/px: ~9 cpd), so the output size, not the eye, limits detail there |
+| Storage samples per cycle | 2.5 | — (fixed) | px per acuity cycle | C | storage grid = max(0.01, 1 / (2.5 × regime acuity)) deg/px; Gaussian pre-filter (σ = 0.4 × factor) + bilinear |
+| Storage max side | 1024 | — (fixed) | px | C | if the cap coarsens the grid, `Percept.display_limited = True` and the log records the effective cpd |
+| Noise seed | hash(image_id, region, distance_m, cond_id, base seed) | — | — | — | blake2b; different per image, reproducible |
 | Photo colour | uncalibrated sRGB | — | — | C | Melin used a GretagMacbeth chart; we have none, so cone catches are approximate |
 
 ## Notes and caveats
@@ -72,12 +77,13 @@ are two readings:
 `S(acuity) = 1`, so the cut-off frequency (where the filter output reaches zero) is the
 acuity under either reading. The reading changes only where the peak b sits below the cut-off.
 
-**The b sweep covers only the log reading.** The sweep 0.08–0.15 × acuity is 1.9–3.5 cpd
-for photopic zebra. Under the linear reading, `b_zebra = b_cat + 17.5 ≥ 17.5 cpd` for any
-`b_cat ≥ 0`, which is at least 0.75 × acuity. That is far outside the sweep, and the CSF would
-peak just below its own cut-off, which is implausible for a mammalian CSF. To test the linear
-reading anyway, extend the sweep to about 0.75–0.9 × acuity; the cut-off stays fixed at the
-acuity.
+**We use the log reading; the linear reading is not swept.** Under the linear reading,
+`b_zebra = b_cat + 17.5 ≥ 17.5 cpd` for any `b_cat ≥ 0`, which places the zebra CSF peak at
+0.75–0.9 × acuity. Measured mammal CSFs peak far below their acuity. For example, Brown-Norway
+rats peak at 0.17 cpd against a limit of 1.6 cpd, a ratio of about 0.11 (Johnson,
+Gregorich & Passaglia 2020, *Neuroscience* 449:63–73, doi 10.1016/j.neuroscience.2020.09.056,
+PMC7642022; abstract and Table 1, while the Results text gives 0.15 / 1.7 cpd). So we use the
+log reading, with b = 0.08–0.15 × acuity (sweep), which matches that ratio.
 
 ### Melin Table 2 is a calibration check, not an independent validation
 Melin's Table 2 distances are computed from the acuities with `d = 2·width / tan(1/acuity)`.
@@ -85,22 +91,29 @@ Melin's Table 2 distances are computed from the acuities with `d = 2·width / ta
 matches the published resolution limits, by construction. It is **not** independent
 validation of the model: both sides come from the same acuity numbers.
 
-### CSF contrast threshold (`csf.contrast_threshold`)
-Above b, an FFT component is zeroed when `m(f) × S(f) < 1`, with `m = 2|F(f)|/|F(0)|`. This
-is per-coefficient contrast, so it depends on how spread the pattern's spectrum is, not only
-on stripe contrast. Straight stripes put their energy in a few coefficients and pass. Wavy
-stripes of the same width and contrast spread it over many coefficients, and each falls
-below threshold. Measured RMS contrast after the CSF, threshold on vs off (same widths,
-0.1 cm/px):
+### CSF contrast threshold: `csf.mode` peli (default) vs global
+`global` zeroes an FFT component when `m(f) × S(f) < 1`, with `m = 2|F(f)|/|F(0)|`. That is
+per-coefficient contrast, so it depends on how spread the pattern's spectrum is and on crop
+size, not only on stripe contrast. Wavy stripes spread their energy over many coefficients
+and are wiped out. `peli` (Peli 1990, doi 10.1364/JOSAA.7.002032) thresholds the local
+band-limited contrast per pixel and half-octave band instead. Details are in
+`zebrasight/eye/csf.py`, including three refinements: a flat-top analysis band, S weighted at
+each frequency, and the monogenic envelope. Without them, a full-contrast grating at 0.9 ×
+acuity fell between two bands and was erased.
 
-| Pattern | c0 20 m | c8 20 m | c0 40 m |
-|---|---|---|---|
-| Straight | 0.366 / 0.368 | 0.126 / 0.130 | 0.108 / 0.113 |
-| Wavy | 0.240 / 0.296 | **0.011 / 0.086** | **0.010 / 0.075** |
+RMS contrast after the CSF: "none" is the CSF transfer with no threshold. Stripes are
+0.1 → 0.9 sRGB at a 5 cm period and 0.1 cm/px, straight vs wavy (x + 2.5 cm × sin(y/6 cm)):
 
-It also depends on image size (larger crops give finer frequency bins). The threshold is
-switchable (grade C, sweep on/off). A local band-limited contrast (Peli 1990) would remove
-both dependencies.
+| Pattern | Mode | c0 20 m | c8 20 m | c0 40 m |
+|---|---|---|---|---|
+| Straight | none / global / peli | 0.355 / 0.355 / 0.358 | 0.119 / 0.115 / 0.120 | 0.098 / 0.095 / 0.098 |
+| Wavy | none / global / peli | 0.321 / 0.300 / 0.321 | 0.089 / **0.061** / 0.089 | 0.071 / **0.029** / 0.070 |
+
+With peli, the wavy coat matches its unthresholded value; the global rule loses up to 60%.
+Wavy stays below straight even without any threshold. That is physical: tilted stripes have
+a higher local frequency (up to 8% here), which the CSF attenuates more near the acuity.
+`tests/eye/test_fixes.py` checks that peli is independent of crop size (512 vs 1024 crop,
+central contrast within 5%).
 
 ### Other notes
 - **Pasternak & Merigan 1981 peak values not found.** The paper is paywalled and has no
@@ -137,4 +150,7 @@ both dependencies.
 | macuda1999 | Macuda T, Timney B (1999) Luminance and chromatic discrimination in the horse (*Equus caballus*). *Behav Processes* 44(3):301–307 | [10.1016/S0376-6357(98)00039-4](https://doi.org/10.1016/S0376-6357(98)00039-4) | yes |
 | harman1999 | Harman AM, Moore S, Hoskins R, Keller P (1999) Horse vision and an explanation for the visual behaviour originally explained by the 'ramp retina'. *Equine Vet J* 31(5):384–390 | [10.1111/j.2042-3306.1999.tb03837.x](https://doi.org/10.1111/j.2042-3306.1999.tb03837.x) | yes |
 | guo2000 | Guo X, Sugita S (2000) Topography of ganglion cells in the retina of the horse. *J Vet Med Sci* 62(11):1145–1150 | [10.1292/jvms.62.1145](https://doi.org/10.1292/jvms.62.1145) | yes |
+| peli1990 | Peli E (1990) Contrast in complex images. *J Opt Soc Am A* 7(10):2032–2040 | [10.1364/JOSAA.7.002032](https://doi.org/10.1364/JOSAA.7.002032) | yes |
+| caves2018 | Caves EM, Johnsen S (2018) AcuityView: an R package for portraying the effects of visual acuity on scenes observed by an animal. *Methods Ecol Evol* 9(3):793–797 | [10.1111/2041-210X.12911](https://doi.org/10.1111/2041-210X.12911) | yes |
+| johnson2020 | Johnson NP, Gregorich SM, Passaglia CL (2020) Spatiotemporal contrast sensitivity of Brown-Norway rats under scotopic and photopic illumination. *Neuroscience* 449:63–73 | [10.1016/j.neuroscience.2020.09.056](https://doi.org/10.1016/j.neuroscience.2020.09.056) | yes |
 | wits_zebra | Wits University, Project Plains Zebra, retina sub-project | [web page](https://www.wits.ac.za/admintest/project-plains-zebra/sub-projects/retina/) | yes |

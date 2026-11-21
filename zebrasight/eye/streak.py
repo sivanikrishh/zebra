@@ -8,7 +8,10 @@ elevation 0 (Timney & Keil 1992; peak 4000 cells/mm2, Guo & Sugita 2000):
     floor = 0.16 (periphery 2.7 / streak 16.5 cpd, Harman et al. 1999)
 A is the regime acuity (photopic / mesopic / scotopic) chosen from ``cond.light``.
 
-Blur: a Gaussian stack (a full-resolution Gaussian pyramid, built by FFT so any blur width
+With csf.mode = "peli" (default) this stage only sets ``acuity_map``; the csf stage applies
+it per pixel and frequency band. With csf.mode = "global" it also blurs, as follows.
+
+Blur (global mode): a Gaussian stack (a full-resolution Gaussian pyramid, built by FFT so any blur width
 is cheap). Level 0 is the input; level k >= 1 is a Gaussian whose transfer is 0.5 at
 A / 2^k. Each pixel blends the two levels around l = log2(A / acuity_map), so on the streak
 centre (acuity_map = A) nothing changes and the csf stage alone sets the cut-off at A.
@@ -68,14 +71,17 @@ class Streak(Stage):
         floor = float(self.param("streak.periphery_floor"))
         amap = acuity_map(state.az_map, state.el_map, peak, sigma_el, falloff90, floor)
         n_levels = math.ceil(math.log2(1.0 / floor))
-        level = torch.log2(peak / amap).clamp(0.0, float(n_levels))
-
-        if state.rod is not None:
-            state = state.evolve(rod=blend_stack(state.rod, level, peak, state.deg_per_px, n_levels))
-        else:
-            state = state.evolve(cones=blend_stack(state.cones, level, peak, state.deg_per_px, n_levels))
+        # In peli mode the csf stage applies acuity_map per pixel and band; blurring here too
+        # would filter twice. The Gaussian stack is only used with the global CSF.
+        blur = str(self.param("csf.mode")) == "global"
+        if blur:
+            level = torch.log2(peak / amap).clamp(0.0, float(n_levels))
+            if state.rod is not None:
+                state = state.evolve(rod=blend_stack(state.rod, level, peak, state.deg_per_px, n_levels))
+            else:
+                state = state.evolve(cones=blend_stack(state.cones, level, peak, state.deg_per_px, n_levels))
         state = state.evolve(acuity_map=amap)
         self.record(state, regime=regime, acuity_cpd=peak, sigma_el_deg=sigma_el, az_falloff_at_90=falloff90,
-                    periphery_floor=floor, n_levels=n_levels,
+                    periphery_floor=floor, n_levels=n_levels, stack_blur=blur,
                     acuity_map_min=float(amap.min()), acuity_map_max=float(amap.max()))
         return state

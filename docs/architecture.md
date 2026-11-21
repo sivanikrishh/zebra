@@ -7,9 +7,10 @@ photo crop (sRGB, cm_per_px, region mask, IDs)
    |  Pipeline.run(img, cm_per_px, mask, cond, meta)   sRGB decoded to linear RGB here
    v
 ViewState --geometry--> --scene--> --atmosphere--> --eye--> make_percept --> Percept
-           (deg/px,      (linear     (linear RGB:    (RGB -> [L,S] or rod,   (<= 256 px,
-            az/el maps,   RGB: grass,  haze,           motion, streak,         rho = black
-            resample)     shadows)     airlight)       CSF, noise)             fraction)
+           (deg/px,      (linear     (linear RGB:    (RGB -> [L,S] or rod,   (2.5 px per
+            az/el maps,   RGB: grass,  haze,           motion, streak,         acuity cycle,
+            resample)     shadows)     airlight)       Peli CSF, noise)        rho = black
+                                                                               fraction)
 ```
 
 The eye stage runs its own ordered sub-stages, set in `configs/eye.yaml`:
@@ -44,7 +45,7 @@ can be switched off with `eye_stages.<name>: false` (dichromacy is required).
 |---|---|
 | `ViewCond` | `distance_m, cond_id, light (day/dawn/dusk/night), luminance_cd_m2, field_az_deg=0, field_el_deg=0, azimuth_view_deg=0, beta_haze=0, speed_mps=0, motion_dir_deg=0, seed` |
 | `ViewState` | `rgb (B,3,H,W) linear or None, cones (B,2,H,W) or None, rod (B,1,H,W) or None, mask (B,1,H,W), deg_per_px, az_map, el_map, acuity_map, cm_per_px, cond, meta, log, source_limited` |
-| `Percept` | `y = L luminance (B,1,h,w) (rod at night), s = S cone or None at night, rho, mask, deg_per_px, meta, log, source_limited` |
+| `Percept` | `y = L luminance (B,1,h,w) (rod at night), s = S cone or None at night, rho, mask, deg_per_px, meta, log, source_limited, display_limited` |
 
 - `acuity_map` (cycles/deg, (B,1,H,W)): local resolution limit, set by the streak stage and
   read by the csf stage.
@@ -53,6 +54,8 @@ can be switched off with `eye_stages.<name>: false` (dichromacy is required).
   box-averaged over a window of one acuity cycle (1 / regime acuity, in output pixels).
 - `source_limited`: the source pixel subtends more than the 0.01 deg/px working grid
   (close range), so the photo's own resolution limits what can be resolved.
+- `display_limited`: the 1024 px storage cap forced a grid coarser than 2.5 px per acuity
+  cycle; the percept log records the effective cpd.
 
 ## Stages
 
@@ -64,10 +67,10 @@ can be switched off with `eye_stages.<name>: false` (dichromacy is required).
 | `eye` | `eye/__init__.py` | runs the enabled sub-stages in `eye_order` |
 | `dichromacy` | `eye/dichromacy.py`, `eye/spectral.py` | 2x3 matrix from Govardovskii templates x CRT primaries; rod-only below 0.02 cd/m2 |
 | `motion` | `eye/motion.py` | line kernel of length speed x t_int / d along `motion_dir_deg` |
-| `streak` | `eye/streak.py` | acuity_map; per-pixel blend of a Gaussian stack by log2(A / acuity_map) |
-| `csf` | `eye/csf.py` | FFT log-parabola CSF on luminance (S(acuity) = 1, contrast threshold); chroma low-pass at 0.5 x A |
-| `noise` | `eye/noise.py` | inverse-CDF Poisson + Gaussian, CPU generator seeded by `cond.seed` |
-| (output) | `eye/percept.py` | area-downsample to max side 256, rho |
+| `streak` | `eye/streak.py` | acuity_map (per pixel); Gaussian-stack blur only in csf global mode |
+| `csf` | `eye/csf.py` | `peli` (default): half-octave log-cosine bands, local band-limited contrast threshold per pixel with S(f; acuity_map), CSF attenuation, cut-off at 1.02 A; chroma bands ramped at 0.5 x acuity_map. `global`: per-FFT-coefficient threshold (comparison only) |
+| `noise` | `eye/noise.py` | inverse-CDF Poisson + Gaussian, CPU generator; per-image seed = hash(image_id, region, distance, cond_id, base seed) |
+| (output) | `eye/percept.py` | storage grid max(0.01, 1/(2.5 A)) deg/px, cap 1024 px, Gaussian pre-filter; rho |
 
 Adding a stage: subclass `Stage`, decorate with `@register_stage("name")`, read parameters
 with `self.param("block.name")`, call `self.record(state, **params)` in `forward`, and add
@@ -89,6 +92,13 @@ Mollon 1999 adapted to S430/L545: blue and yellow primaries map to themselves), 
 
 Configs load with OmegaConf (`zebrasight.config.load_config`). Tests override values with
 `OmegaConf.update(cfg, "csf.b_peak_fraction.value", 0.12)`.
+
+## Calibration
+
+`python -m zebrasight.calibration.melin` reproduces Melin et al. 2016 Table 2 with synthetic
+gratings and writes `docs/calibration.md`, `docs/calibration_results.json` and
+`docs/figures/calibration.png` (code in `zebrasight/calibration/`, incl. an AcuityView
+re-implementation for comparison). `tests/eye/test_calibration.py` runs a fast subset.
 
 ## Performance
 

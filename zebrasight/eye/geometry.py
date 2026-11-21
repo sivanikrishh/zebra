@@ -2,7 +2,7 @@
 
 Physics: a source pixel of size ``cm_per_px`` at distance d subtends
     deg_per_px_src = degrees(atan(cm_per_px / 100 / d))
-- finer than the working grid (eye.yaml ``working_grid``, 0.01 deg/px): area-average
+- finer than the working grid (eye.yaml ``working_grid``, 0.01 deg/px): Gaussian pre-filtered
   (anti-aliased) downsample of rgb and mask to the working grid;
 - coarser (close range): keep the source grid and set ``source_limited`` = True, because
   the camera, not the eye, then limits what can be resolved.
@@ -20,7 +20,7 @@ import math
 
 import torch
 
-from zebrasight.eye.ops import area_resize, resize_mask
+from zebrasight.eye.ops import gaussian_resize, resize_mask
 from zebrasight.registry import Stage, register_stage
 from zebrasight.types import ViewState
 
@@ -42,7 +42,7 @@ def foreshorten(rgb: torch.Tensor, mask: torch.Tensor, azimuth_view_deg: float):
     """Compress width by cos(azimuth_view). Hook only: not applied in phase 1."""
     h, w = rgb.shape[-2:]
     new_w = max(1, round(w * math.cos(math.radians(azimuth_view_deg))))
-    return area_resize(rgb, (h, new_w)), resize_mask(mask, (h, new_w))
+    return gaussian_resize(rgb, (h, new_w)), resize_mask(mask, (h, new_w))
 
 
 @register_stage("geometry")
@@ -60,7 +60,7 @@ class Geometry(Stage):
         if dpp_src < grid:
             new_h = max(1, round(h * dpp_src / grid))
             new_w = max(1, round(w * dpp_src / grid))
-            rgb = area_resize(rgb, (new_h, new_w)) if rgb is not None else None
+            rgb = gaussian_resize(rgb, (new_h, new_w)) if rgb is not None else None
             mask = resize_mask(mask, (new_h, new_w))
             dpp = dpp_src * h / new_h  # exact angular pixel size after rounding the size
             source_limited, resampled = False, True

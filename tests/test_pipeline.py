@@ -27,16 +27,17 @@ def test_end_to_end_shapes(batch, phase_stages, cond_id):
     cond = make_cond(cond_id, distance_m=23.318)
     p = pipe.run(img, cm_per_px=0.5, mask=mask, cond=cond, meta=meta)
 
-    assert p.y.shape == (B, 1, H, W)
+    h, w = p.y.shape[-2:]
+    assert p.y.shape[:2] == (B, 1) and h <= H and w <= W
     assert p.y.dtype == COMPUTE_DTYPE
     assert p.y.device.type == pipe.device.type
-    assert p.mask.shape == (B, 1, H, W)
-    assert p.rho.shape == (B, 1, H, W)
+    assert p.mask.shape == (B, 1, h, w)
+    assert p.rho.shape == (B, 1, h, w)
     assert 0.0 <= float(p.rho.min()) and float(p.rho.max()) <= 1.0  # black fraction
     if cond_id == "c9":  # night: below the 0.02 cd/m2 colour threshold -> rod only
         assert p.s is None
     else:  # dusk 0.16 cd/m2 is above the threshold: colour stays on
-        assert p.s.shape == (B, 1, H, W)
+        assert p.s.shape == (B, 1, h, w)
     assert p.meta == meta
     assert p.deg_per_px > 0
 
