@@ -1,6 +1,12 @@
 .venv/
-data/
-cache/
+# anchored: only the repo-level folders (zebrasight/data/ is a code package)
+/data/
+/cache/
+# never commit datasets, wherever they land
+zebrasight/data/raw/
+*.tar.gz
+*.tgz
+*.zip
 __pycache__/
 *.pyc
 *.egg-info/
