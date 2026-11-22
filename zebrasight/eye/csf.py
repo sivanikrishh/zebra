@@ -197,9 +197,21 @@ def peli_csf_batch(lums: list[torch.Tensor], chromas: list[torch.Tensor] | None,
     f_hi = float(f.max())
     if f_hi <= 0.0:  # every item is a single pixel: DC only, which the CSF passes unchanged
         return list(lums), (list(chromas) if chromas is not None else None), {"n_bands": 0, "batch": len(lums)}
+    own = [band_centres(lo, f_hi, acuity, s) for lo in item_lo]
+    if not all(own):  # an item with no band at all (tiny night percept): DC only, pass through unchanged
+        keep = [i for i, o in enumerate(own) if o]
+        res_l, res_c = list(lums), (list(chromas) if chromas is not None else None)
+        if keep:
+            kl, kc, info = peli_csf_batch([lums[i] for i in keep], None if chromas is None else [chromas[i] for i in keep],
+                                          [dpps[i] for i in keep], acuity, [acuity_maps[i] for i in keep],
+                                          b_frac, c, s, delta, taper, chroma_ratio)
+            for j, i in enumerate(keep):
+                res_l[i] = kl[j]
+                if res_c is not None:
+                    res_c[i] = kc[j]
+        return res_l, res_c, {"n_bands": 0, "batch": len(lums), "passthrough": len(lums) - len(keep)}
     centres = band_centres(min(item_lo), f_hi, acuity, s)
-    k0 = [next(k for k, ck in enumerate(centres) if ck >= band_centres(lo, f_hi, acuity, s)[0] - 1e-9)
-          for lo in item_lo]
+    k0 = [next(k for k, ck in enumerate(centres) if ck >= o[0] - 1e-9) for o in own]
     residual = torch.cat([
         torch.where(f[i : i + 1] < centres[k0[i]], 1.0 - log_cos_band(f[i : i + 1], centres[k0[i]], s),
                     torch.zeros_like(f[i : i + 1]))
