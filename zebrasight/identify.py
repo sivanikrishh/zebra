@@ -27,6 +27,11 @@ query     a new photo: Mask R-CNN finds the zebra (the largest one, or the one b
           Matching an eye-rendered query against plain colour photos does NOT work: on a test photo the
           true zebra fell from 0.59 to 0.45 similarity even at 2 m, from the rendering alone.
 
+NEVER compare raw similarity across distances or light levels: blurred percepts all look alike, so
+          similarity inflates with distance (test photo: true match 0.62 at 2 m; unrelated zebras 0.72-0.79
+          at 30 m). Use ranks or AUC within one setting. That is why the unknown-zebra threshold is
+          calibrated on the gallery seen at the SAME distance and light as the query (docs/todo.md).
+
 Similarity = cosine of L2-normalised embeddings; a zebra's score = its best-matching gallery photo.
 This is CLOSED-SET: it always names the nearest known zebra, even for an animal it has never seen.
 CAVEAT: MegaDescriptor's training data includes GiraffeZebraID (= GZGC), so accuracy on GZGC photos
