@@ -92,3 +92,14 @@ def test_oracle_alignment_keeps_cells_aligned_at_all_distances():
         ok[gs.shape[0] // 4: 3 * gs.shape[0] // 4, gs.shape[1] // 4: 3 * gs.shape[1] // 4] = True
         r = np.corrcoef(w[ok], gs[ok])[0, 1]
         assert r > 0.9, (f, r)
+
+
+def test_plausible_affine_rejects_degenerate_maps():
+    from zebrasight.positional.align import plausible_affine
+
+    ident = np.array([[1.0, 0, 0], [0, 1.0, 0]])
+    assert plausible_affine(ident, ident)[0]
+    assert plausible_affine(np.array([[1.1, 0.1, 5], [-0.1, 0.95, 2]]), ident)[0]
+    assert plausible_affine(np.array([[-1.0, 0, 0], [0, 1.0, 0]]), ident) == (False, "reflection")
+    assert plausible_affine(np.array([[3.0, 0, 0], [0, 0.2, 0]]), ident) == (False, "anisotropy")
+    assert plausible_affine(np.array([[3.0, 0, 0], [0, 3.0, 0]]), ident) == (False, "scale")

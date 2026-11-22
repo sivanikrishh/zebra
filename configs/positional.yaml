@@ -47,6 +47,8 @@ align:                                       # B2 pairwise alignment on sharp OR
   tps_lambda: 1.0                            # TPS smoothing (px^2): keeps the warp near-affine between sparse points
   min_overlap: 0.5                           # aligned_ok needs >= 50% of the smaller mask covered after warping
   max_residual_px: 4.0                       # aligned_ok needs median inlier residual <= 4 px (just above RANSAC's 3 px)
+  max_anisotropy: 2.0                        # SIFT affine rejected if its singular values differ > 2x (B4 QA: few collinear inliers squash the map to a line); grade C
+  max_scale_ratio: 1.5                       # ... or if its linear scale differs > 1.5x from the canonical-frame map's (same animal, similar distance); grade C
   go_no_go_share: 0.60                       # B4 rule: >= 60% of same-zebra pairs need >= 4 inliers, else better fallback
 
 observers:                                   # C1-C8, all in cycles per body length (cpbl), converted per percept
