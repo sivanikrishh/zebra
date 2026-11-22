@@ -1,0 +1,24 @@
+# Feature-extraction thresholds (person B). Every value has a one-line justification.
+# Chosen before computing any feature on real data; do not tune them on results.
+
+min_short_side_px: 12        # below ~5 acuity cycles (2.5 px/cycle) a region cannot hold a measurable stripe pattern -> NaN
+min_mask_px: 100             # fewer pixels than a 10x10 patch: statistics (Otsu, histograms) are unstable -> NaN
+min_black_frac: 0.05         # binary mask degenerate if either class covers < 5% of the region (Otsu found no stripes)
+max_black_frac: 0.95         # same, other class
+
+spur_cycles: 1.0             # prune skeleton spurs shorter than one acuity cycle (prompt): finer detail is below resolution
+junction_min_neighbours: 3   # skeleton pixel with >= 3 neighbours is a junction (prompt definition of a Y-junction)
+
+orientation_bins: 18         # F4 entropy over 18 bins of 10 deg (prompt)
+structure_sigma_cycles: 1.0  # structure-tensor integration scale = one acuity cycle: averages over one stripe period at the limit
+transect_count: 9            # parallel transects across the stripes for F2/F7 run lengths: enough samples, cheap
+fft_entropy_bins: 16         # radial frequency histogram bins for F7 entropy (log-spaced over the valid band)
+
+multiotsu_classes: 3         # F8 shadow stripes: black / shadow / white (prompt)
+shadow_min_elongation: 3.0   # a middle-class component counts as a shadow stripe if major/minor axis >= 3 (stripe-like)
+shadow_min_px: 6             # ignore middle-class specks smaller than ~one acuity cycle squared
+
+persistence_threshold: 0.1   # F10: features with persistence < 0.1 (10% of median luminance, Weber units) are noise
+
+layout_grid: [16, 24]        # L family: rho resampled to 16 rows x 24 cols over the region box (prompt)
+minutiae_grid: [4, 6]        # M family: junctions/endings binned on 4 x 6 cells (prompt)

@@ -1,0 +1,56 @@
+# PRE-REGISTERED recognition metrics (person B). Written 2026-11-22 08:2x IST, BEFORE any recognition
+# result was computed. Do not change thresholds after looking at results; additions must be dated.
+
+pairs:
+  genuine: "same zebra, gallery image x query image (gallery = earliest date, query = later dates; never the same encounter)"
+  impostor: "different zebras, gallery x query"
+  impostor_per_genuine_max: 10     # subsample impostors to <= 10x the genuine pairs
+  seed: 0
+
+observers:
+  raw_pixel: "R family: Weber-normalised percept on a fixed 16x24 grid, cosine similarity; NO min-size rule"
+  interpretable: "F1-F10 scalars, z-scored with gallery statistics, per-feature NaN -> gallery mean; nearest neighbour (similarity = -euclidean) and LDA (fitted on gallery only)"
+  interpretable_spatial: "F1-F10 + L (rho 16x24 -> PCA 20 fitted on gallery only) + M (4x6 junction/ending maps)"
+  learned: "zero-shot MegaDescriptor (fallback DINOv2), cosine; only if time allows"
+  fit_scope: "every z-score, PCA, LDA and calibration is fitted per (region, cond, distance) on GALLERY images only"
+
+nan_rule:
+  invalid_percept: "a percept whose features are all NaN (too small / degenerate) gets the MINIMUM similarity against every gallery image: it counts as a miss, never dropped"
+  partial_nan: "an individual NaN feature in a valid percept is replaced by the gallery mean of that feature"
+
+primary:
+  metric: roc_auc
+  ci: 0.95
+  bootstrap_over: zebras
+  n_boot_final: 1000
+  n_boot_dev: 200
+  usable_auc: 0.80     # d*_AUC = farthest distance where the LOWER 95% CI of AUC >= 0.80
+  reliable_auc: 0.95   # also report the farthest distance with lower CI >= 0.95
+  report_every_crossing: true
+
+secondary:
+  far_operating_point: 0.01          # TAR @ FAR = 1%
+  herd_sizes: [5, 20, 50]            # with 50 zebras, N = 50 is the whole set every draw (reported with that caveat)
+  herd_draws: 200
+  bits_rule: "d*_bits = farthest distance where the lower CI of Fano identity bits >= log2(N)"
+  open_set_N: 20                     # herd-mates vs strangers, max-similarity score, AUROC
+  d75: {herd_N: 20, top1: 0.75}      # distance where top-1 at N = 20 falls to 75% (print with N and chance)
+  emergence: "E(d) = AUC_interpretable(d) - AUC_raw_pixel(d); emergence = E rises with distance with CI above 0"
+  retention: "R(d_ref -> d) = AUC(gallery at d_ref, query at d) / AUC(both at d); 16x16, c0, flank and face"
+  crossover: "d_x where AUC_face(d) = AUC_flank(d), paired bootstrap over zebras; sign of dAUC = face - flank per distance"
+  distance_loss_ratio: "d*_AUC(cond) / d*_AUC(c0) with CI"
+  family_importance: "drop in AUC when one family (F1..F10, L, M) is permuted across zebras; plus single-family AUC"
+  pairwise_dstar: "per zebra pair: farthest distance where the observer still ranks the pair's genuine above their cross impostor; CDF"
+
+diagnostics:
+  per_feature: [fisher_ratio_zebra, beecher_hs_bits, single_feature_auc]
+  confound_flag: "flag a feature if its Fisher ratio across CONDITIONS exceeds its Fisher ratio across ZEBRAS"
+
+calibration:
+  method: platt            # logistic fit similarity -> P(same), gallery pairs only
+  report: [brier, reliability_curve]
+
+controls:
+  label_shuffle_null: "every main curve also computed with zebra labels shuffled; AUC must sit at 0.5"
+  reference: "c0 at 2 m is the high-resolution reference"
+  mark_flags: [display_limited, source_limited, size_rule]   # size_rule = short side < min_short_side_px (per region)
