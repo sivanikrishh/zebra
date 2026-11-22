@@ -87,6 +87,13 @@ smoke:                                       # Part F (laptop): tiny sanity run,
   distance_indices: [0, 6, 9]                # 2.0, 12.6, 31.7 m of the 16-distance grid
   n_diff_pairs: 20                           # different-zebra pairs for the B4 alignment check
 
+projection:                                  # Part F: rough full-run time projection from the smoke timings (grade C, planning only)
+  laptop_workers: 4                          # = run.n_jobs on the laptop (observers are CPU-bound per pair)
+  dgx_workers: 32                            # DGX: 32 CPU cores, one pair per worker
+  dgx_cpu_speedup: 1.0                       # per-core speed DGX vs laptop i7 assumed equal (conservative)
+  dgx_gpu_speedup: 5.0                       # percept generation, data-centre GPU vs RTX 3050 Laptop (assumed ~5x)
+  generator_passes: 60                       # ~ladder passes for Part D steps: bands 10 + shuffle 12 + scramble 3 + silhouette 2 + morph 24 + transplant ~9 (occlusion maps excluded)
+
 run:
   n_jobs: 4                                  # CPU workers for joblib steps; Windows laptop default, raise on the DGX
   device: auto                               # cuda if available else cpu
