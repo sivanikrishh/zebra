@@ -62,6 +62,12 @@ class Ctx:
     runs_black_px: np.ndarray | None = None
     runs_white_px: np.ndarray | None = None
     black_centres_px: list = field(default_factory=list)
+    rho_corr: np.ndarray | None = None  # black fraction of the lighting-corrected binary (A's rho rule)
+    black_raw: np.ndarray | None = None  # single-Otsu binary without lighting correction (sensitivity)
+    runs_black_raw_px: np.ndarray | None = None
+    runs_white_raw_px: np.ndarray | None = None
+    prune_px: int = 0
+    illum_sigma_px: float = math.nan
 
 
 def neighbours(skel: np.ndarray) -> np.ndarray:
@@ -89,9 +95,20 @@ def prune(skel: np.ndarray, length: int) -> np.ndarray:
     return grown
 
 
-def transect_runs(ctx: Ctx, n_lines: int) -> None:
+def illumination(y: np.ndarray, mask: np.ndarray, sigma_px: float) -> np.ndarray:
+    """Large-scale illumination inside the mask by normalised convolution: G*(y m) / G*m, so pixels
+    near the mask edge are not darkened by the zeros outside it."""
+    m = mask.astype(float)
+    num = ndi.gaussian_filter(y * m, sigma_px, mode="constant")
+    den = ndi.gaussian_filter(m, sigma_px, mode="constant")
+    return np.where(den > 1e-6, num / np.maximum(den, 1e-6), 1.0)
+
+
+def transect_runs(ctx: Ctx, n_lines: int, black: np.ndarray | None = None) -> tuple:
     """Black/white run lengths (px) along parallel lines across the stripes (along the dominant
-    normal). Runs touching a segment end (truncated by the mask) are dropped."""
+    normal). Runs touching a segment end (truncated by the mask) are dropped. With ``black`` given,
+    returns (blacks, whites) for that binary instead of filling ctx."""
+    use_black = ctx.black if black is None else black
     r0, r1, c0, c1 = ctx.bbox
     cy, cx = (r0 + r1 - 1) / 2, (c0 + c1 - 1) / 2
     nvec = np.array([math.sin(ctx.dominant_normal), math.cos(ctx.dominant_normal)])  # (dy, dx)
@@ -108,7 +125,7 @@ def transect_runs(ctx: Ctx, n_lines: int) -> None:
         if yi.size < 4:
             continue
         m = ctx.mask[yi, xi]
-        b = ctx.black[yi, xi]
+        b = use_black[yi, xi]
         # split into contiguous in-mask segments
         edges = np.flatnonzero(np.diff(np.r_[0, m.astype(int), 0]))
         for s, e in zip(edges[::2], edges[1::2]):
@@ -125,9 +142,12 @@ def transect_runs(ctx: Ctx, n_lines: int) -> None:
                 else:
                     whites.append(L)
             centres.append(None)  # segment separator
+    if black is not None:
+        return np.array(blacks), np.array(whites)
     ctx.runs_black_px = np.array(blacks)
     ctx.runs_white_px = np.array(whites)
     ctx.black_centres_px = centres
+    return ctx.runs_black_px, ctx.runs_white_px
 
 
 def prepare(percept: dict, distance_m: float, cfg: dict | None = None) -> Ctx:
@@ -146,7 +166,14 @@ def prepare(percept: dict, distance_m: float, cfg: dict | None = None) -> Ctx:
     med = float(np.median(y[mask]))
     if not np.isfinite(med) or med <= 0:
         return Ctx(False, "non-positive luminance", cm_per_px)
-    yn = y / med
+    # D1 (configs/features.yaml): divide out large-scale lighting before Otsu
+    region = str(percept.get("region") or "flank")
+    sigma_px = max(cfg["illumination_sigma_min_px"], cfg["illumination_sigma_cm"].get(region, cfg["illumination_sigma_cm"]["flank"]) / cm_per_px)
+    yc = np.where(mask, y / np.maximum(illumination(y, mask, sigma_px), 1e-9), 0.0)
+    medc = float(np.median(yc[mask]))
+    if not np.isfinite(medc) or medc <= 0:
+        return Ctx(False, "non-positive luminance", cm_per_px)
+    yn = yc / medc
     try:
         t = threshold_otsu(yn[mask])
     except ValueError:
@@ -160,15 +187,30 @@ def prepare(percept: dict, distance_m: float, cfg: dict | None = None) -> Ctx:
     cycle_px = (1.0 / regime_acuity(cond)) / dpp
     ctx = Ctx(True, "", cm_per_px, cycle_px, mask, yn, black, white, bbox,
               area_cm2=float(mask.sum()) * cm_per_px**2)
-    # skeleton of the black stripes, spurs < one acuity cycle pruned
-    skel = prune(skeletonize(black), max(1, round(cfg["spur_cycles"] * cycle_px)))
+    ctx.illum_sigma_px = sigma_px
+    # raw single-Otsu binary (no lighting correction), kept for F2_rawotsu / L_rawotsu
+    yr = y / med
+    try:
+        ctx.black_raw = (yr < threshold_otsu(yr[mask])) & mask
+    except ValueError:
+        ctx.black_raw = black
+    # corrected black fraction, same rule as A's rho: box mean over one acuity cycle
+    win = max(1, int(round(cycle_px)) | 1)
+    ctx.rho_corr = ndi.uniform_filter(black.astype(float), size=win, mode="nearest")
+    # D2: prune spurs shorter than max(1 acuity cycle, 3 px, 0.5 x median stripe width)
+    raw_skel = skeletonize(black)
+    dt = ndi.distance_transform_edt(black)
+    med_width_px = float(np.median(np.maximum(2 * dt[raw_skel] - 1, 1))) if raw_skel.any() else 0.0
+    ctx.prune_px = max(round(cfg["spur_cycles"] * cycle_px), cfg["spur_min_px"],
+                       round(cfg["spur_width_frac"] * med_width_px), 1)
+    skel = prune(raw_skel, ctx.prune_px)
     ctx.skel = skel
     nb = neighbours(skel)
     jpx = skel & (nb >= cfg["junction_min_neighbours"])
     lab, n = ndi.label(jpx, structure=EIGHT)
     ctx.junctions = [tuple(c) for c in ndi.center_of_mass(jpx, lab, range(1, n + 1))] if n else []
     ctx.endpoints = [tuple(p) for p in np.argwhere(skel & (nb == 1))]
-    ctx.dt = ndi.distance_transform_edt(black)
+    ctx.dt = dt
     # structure tensor on yn (integration scale = one acuity cycle)
     gy, gx = ndi.sobel(yn, axis=0) / 8.0, ndi.sobel(yn, axis=1) / 8.0
     sig = max(0.7, cfg["structure_sigma_cycles"] * cycle_px)
@@ -181,4 +223,5 @@ def prepare(percept: dict, distance_m: float, cfg: dict | None = None) -> Ctx:
     zz = (w * ctx.z[mask]).sum()
     ctx.dominant_normal = 0.5 * math.atan2(zz.imag, zz.real)
     transect_runs(ctx, cfg["transect_count"])
+    ctx.runs_black_raw_px, ctx.runs_white_raw_px = transect_runs(ctx, cfg["transect_count"], ctx.black_raw)
     return ctx

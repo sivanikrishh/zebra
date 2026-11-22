@@ -7,6 +7,23 @@ min_black_frac: 0.05         # binary mask degenerate if either class covers < 5
 max_black_frac: 0.95         # same, other class
 
 spur_cycles: 1.0             # prune skeleton spurs shorter than one acuity cycle (prompt): finer detail is below resolution
+spur_min_px: 3               # DEVIATION D2 (see below): never prune shorter than 3 px
+spur_width_frac: 0.5         # DEVIATION D2: ... nor shorter than 0.5 x the median stripe width (px)
+
+# --- QC-driven deviations, decided at Checkpoint 1 on 2026-11-22 ~08:30 IST, BEFORE any recognition
+# --- result was computed (only feature QC had been seen). Approved by A (acting as B's lead).
+# D1 lighting correction: a single Otsu put the shaded underside of the flank into the black class
+#    (QC montage), inflating F2/L and adding fake skeleton branches. Before Otsu (all features, L, M),
+#    y is divided by a large-scale illumination estimate: Gaussian low-pass INSIDE the mask by
+#    normalised convolution (G*(y m) / G*m, so the mask edge is not darkened), sigma = 3 x the region's
+#    median stripe period at 2 m (transect period, c0 run 2026-11-22 08:26: flank 7.61 cm, face
+#    3.38 cm), converted to px at each distance, floored at 3 px. The original single-Otsu versions
+#    are kept as F2_rawotsu_* and L_rawotsu_* for a sensitivity check.
+# D2 spur pruning: prune length = max(1 acuity cycle, 3 px, 0.5 x median stripe width in px). At
+#    close range one acuity cycle is < 1 px, so fur texture survived as junctions (59-114 per crop at
+#    2 m). F5 / F6 / M remain trustworthy only from ~10 m (QC note).
+illumination_sigma_cm: {flank: 22.83, face: 10.14, rump: 22.83}   # 3 x median period at 2 m; rump uses flank (no rump in c0 QC run)
+illumination_sigma_min_px: 3
 junction_min_neighbours: 3   # skeleton pixel with >= 3 neighbours is a junction (prompt definition of a Y-junction)
 
 orientation_bins: 18         # F4 entropy over 18 bins of 10 deg (prompt)

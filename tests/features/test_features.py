@@ -60,4 +60,30 @@ def test_orientation_and_density_outputs():
     assert f["F5_junctions_per100cm2"] == pytest.approx(0.0, abs=0.5)  # straight stripes: no Y-junctions
     for name in FEATURES:
         assert any(k.startswith(name + "_") for k in f), name
-    assert sum(k.startswith("L_") for k in f) == 16 * 24 and sum(k.startswith("M_") for k in f) == 48
+    assert sum(k.startswith("L_") and not k.startswith("L_rawotsu") for k in f) == 16 * 24
+    assert sum(k.startswith("L_rawotsu_") for k in f) == 16 * 24 and sum(k.startswith("M_") for k in f) == 48
+
+
+def test_lighting_correction_removes_shading():
+    # stripes under a strong top-to-bottom lighting gradient: the raw single Otsu turns the dark
+    # bottom solid black, the corrected binary keeps ~50% black everywhere (D1)
+    y = stripes(16, h=160, w=200)
+    shade = np.linspace(1.0, 0.25, 160)[:, None]
+    p = percept(y * shade, dpp_for(0.5, 20.0))
+    p["region"] = "flank"
+    from zebrasight.features.common import prepare
+
+    c = prepare(p, 20.0)
+    bottom = slice(120, 160)
+    assert c.black_raw[bottom].mean() > 0.85  # raw: shaded part all "black"
+    assert abs(c.black[bottom].mean() - 0.5) < 0.1  # corrected: stripes kept
+    f = extract(p, 20.0)
+    assert abs(f["F2_rho_mean"] - 0.5) < 0.1 and f["F2_rawotsu_rho_mean"] != f["F2_rho_mean"]
+
+
+def test_prune_length_rule():
+    from zebrasight.features.common import prepare
+
+    p = percept(stripes(40, h=120, w=200), dpp_for(0.1, 2.0))  # close range: acuity cycle < 1 px
+    c = prepare(p, 2.0)
+    assert c.prune_px >= 3 and c.prune_px >= round(0.5 * 20) - 1  # >= half the ~20 px stripe width

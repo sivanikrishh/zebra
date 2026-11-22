@@ -49,6 +49,7 @@ def process_key(store_path: str, key: str, attrs: dict, cond: str, out_dir: str)
     recs = []
     for di, d in enumerate(st.distances):
         p = st.get(key, cond, di)
+        p["region"] = attrs.get("region")  # selects the region's illumination sigma (D1)
         m = p["mask"]
         rows, cols = np.nonzero(m.any(1))[0], np.nonzero(m.any(0))[0]
         short = int(min(rows[-1] + 1 - rows[0], cols[-1] + 1 - cols[0])) if rows.size else 0

@@ -28,7 +28,7 @@ QC_D = (0, 5, 10, 14)  # 2, 9.3, 43.1, 147 m
 
 def data_summary(st: PerceptStore) -> str:
     r = st.rows()
-    valid = r[r.get("valid", True) != False]  # noqa: E712
+    valid = r[r["valid"] != False] if "valid" in r else r  # noqa: E712  (new stores have no flagged rows)
     lines = [f"zebras {valid.zebra_id.nunique()}, rows {len(valid)} (skipped valid==False: {len(r) - len(valid)})",
              valid.groupby(["region", "split"]).size().unstack().to_string(),
              "conditions present: " + ", ".join(sorted(set(sum(valid.conds.tolist(), [])))) + " (c7 = alias of c8)"]

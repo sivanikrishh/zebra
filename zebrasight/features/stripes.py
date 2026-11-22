@@ -49,15 +49,20 @@ def f1_width(percept, distance_m, ctx: Ctx | None = None):
 
 @register_feature("F2")
 def f2_black_fraction(percept, distance_m, ctx: Ctx | None = None):
-    """Mean rho in the mask; black:white run-length ratio across the stripes."""
-    names = ("F2_rho_mean", "F2_run_ratio")
+    """Black fraction and black:white run-length ratio across the stripes, on the lighting-corrected
+    binary (D1); F2_rawotsu_* = the same on the single-Otsu binary / A's rho (sensitivity check)."""
+    names = ("F2_rho_mean", "F2_run_ratio", "F2_rawotsu_rho_mean", "F2_rawotsu_run_ratio")
     c = _ctx(percept, distance_m, ctx)
     if not c.valid:
         return _nan(*names)
-    rho = float(np.asarray(percept["rho"], float)[c.mask].mean())
-    rb, rw = c.runs_black_px, c.runs_white_px
-    ratio = float(np.median(rb) / np.median(rw)) if rb.size and rw.size else NAN
-    return {"F2_rho_mean": rho, "F2_run_ratio": ratio}
+
+    def ratio(rb, rw):
+        return float(np.median(rb) / np.median(rw)) if rb.size and rw.size else NAN
+
+    return {"F2_rho_mean": float(c.rho_corr[c.mask].mean()),
+            "F2_run_ratio": ratio(c.runs_black_px, c.runs_white_px),
+            "F2_rawotsu_rho_mean": float(np.asarray(percept["rho"], float)[c.mask].mean()),
+            "F2_rawotsu_run_ratio": ratio(c.runs_black_raw_px, c.runs_white_raw_px)}
 
 
 @register_feature("F3")
@@ -221,16 +226,21 @@ def f10_topology(percept, distance_m, ctx: Ctx | None = None):
 
 @register_feature("L")
 def layout(percept, distance_m, ctx: Ctx | None = None):
-    """rho in the region box resampled to 16 x 24 (outside the mask = 0.5); PCA is fitted later on gallery only."""
+    """Black fraction in the region box resampled to 16 x 24 (outside the mask = 0.5); PCA is fitted
+    later on gallery only. L_* uses the lighting-corrected binary (D1); L_rawotsu_* uses A's rho."""
     gh, gw = config()["layout_grid"]
     names = [f"L_{i:03d}" for i in range(gh * gw)]
+    raw_names = [f"L_rawotsu_{i:03d}" for i in range(gh * gw)]
     c = _ctx(percept, distance_m, ctx)
     if not c.valid:
-        return _nan(*names)
+        return _nan(*names, *raw_names)
     r0, r1, c0, c1 = c.bbox
-    rho = np.where(c.mask[r0:r1, c0:c1], np.asarray(percept["rho"], float)[r0:r1, c0:c1], 0.5)
-    g = resize(rho, (gh, gw), order=1, anti_aliasing=True, mode="edge")
-    return dict(zip(names, g.ravel().astype(float)))
+    out = {}
+    for nm, src in ((names, c.rho_corr), (raw_names, np.asarray(percept["rho"], float))):
+        rho = np.where(c.mask[r0:r1, c0:c1], src[r0:r1, c0:c1], 0.5)
+        g = resize(rho, (gh, gw), order=1, anti_aliasing=True, mode="edge")
+        out.update(zip(nm, g.ravel().astype(float)))
+    return out
 
 
 @register_feature("M")
