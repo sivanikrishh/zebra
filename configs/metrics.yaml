@@ -86,3 +86,14 @@ amendments:
     why: "tests whether the coarse black-fraction layout carries identity once pose is factored out (the
       unregistered layout L did not). Design, 4-inlier and 16-px thresholds fixed before any result; one
       smoke-test group (flank c0 32 m) was looked at to check the code ran, nothing was changed after it."
+  - id: A5
+    when: "2026-11-23 (positional study, Part A, branch positional)"
+    what: "(1) Held-out confirmation set FROZEN in data/heldout_zebras.csv (seed 20261123): every zebra of
+      data/regions.parquet outside the 50, left side, >= 1 gallery and >= 1 query photo, at most 4 photos
+      (271 zebras, 879 photos). Nothing has been computed on them; they are used only for the final
+      held-out confirmation of the top region. (2) Full-body region for the positional study: body =
+      v2 label PNG > 0 (Mask R-CNN body); photos cut by the frame, without a body mask, with mask fill
+      < 0.40 or another zebra's box covering > 10% are excluded from BODY only (kept for flank and rump);
+      136 of 165 photos kept. Thresholds and justifications in configs/positional.yaml."
+    why: "a confirmation set fixed before any positional result guards against choosing the region on the
+      same zebras it is tested on; full-body analysis needs an uncut, unoccluded body outline."

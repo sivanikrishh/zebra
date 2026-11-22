@@ -1,0 +1,32 @@
+# Positional-pattern toolkit (branch "positional"). Every parameter: value + one-line justification.
+# Regions: body (full body), flank, rump. Condition c0 only. 50-zebra set (data/regions_50.parquet).
+# Coat-unit scales are in CYCLES PER BODY LENGTH (cpbl); body length = 231.5 cm (gzgc.BODY_LENGTH_CM).
+
+data:
+  regions_50: data/regions_50.parquet        # the 50-zebra analysis set (gallery/query on different dates)
+  regions_full: data/regions.parquet         # 321-zebra table; source of the held-out set
+  out_regions: data/regions_50_positional.parquet   # body + flank + rump rows for the positional study
+  body_mask_dir: data/masks/gzgc_v2_body     # body-only PNGs (1 = body), written from the v2 label PNGs (label > 0)
+  heldout_csv: data/heldout_zebras.csv       # frozen confirmation set (amendment A5)
+  store: cache/percepts_50.zarr              # existing 50-zebra percept store; body/rump c0 rows are added to it
+  out_dir: outputs/positional                # reports, alignments, observer outputs
+  regions: [body, flank, rump]               # no face: the face crop is unreliable (OWLv2 / silhouette fallback)
+  condition: c0                              # clear day only: isolates the eye's distance loss
+
+body_quality:                                # A1: which photos show the WHOLE body well enough for full-body analysis
+  edge_margin_px: 2                          # annotation box within 2 px of the frame = animal cut off by the photo edge
+  min_mask_fill: 0.40                        # body mask / box area; side-on bodies fill ~0.52 (median), < 0.40 (~5th pct) = partial or occluded
+  max_other_zebra_cover: 0.10                # another zebra's box covering > 10% of this box = likely overlap of bodies
+  require_mask: true                         # bbox_rule rows have no body mask (whole box), so no body shape
+
+heldout:                                     # A3: frozen before any positional result
+  seed: 20261123                             # fixed seed; the date the set was frozen
+  min_gallery: 1                             # at least one earliest-date photo ...
+  min_query: 1                               # ... and one later-date photo, so a cross-date pair exists
+  max_photos: 4                              # same cap as the 321-zebra table (2 gallery + 2 query)
+  viewpoint: left                            # same side as the 50-zebra set
+
+run:
+  n_jobs: 4                                  # CPU workers for joblib steps; Windows laptop default, raise on the DGX
+  device: auto                               # cuda if available else cpu
+  low_priority: true                         # keep the laptop usable during long runs
