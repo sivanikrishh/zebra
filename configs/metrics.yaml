@@ -54,3 +54,35 @@ controls:
   label_shuffle_null: "every main curve also computed with zebra labels shuffled; AUC must sit at 0.5"
   reference: "c0 at 2 m is the high-resolution reference"
   mark_flags: [display_limited, source_limited, size_rule]   # size_rule = short side < min_short_side_px (per region)
+
+# ---- AMENDMENTS (dated; each made before any result of the observer it adds was seen) -------------
+amendments:
+  - id: A1
+    when: "2026-11-22 ~09:15 IST (Checkpoint 2)"
+    what: "add observer 'hotspotter': HotSpotter-style local matcher. OpenCV SIFT keypoints inside the region
+      mask on the grey display image (originals: photo region, longest side capped at 512 px), Lowe ratio
+      test 0.8, RANSAC affine verification (cv2.estimateAffine2D, reprojection threshold 3 px);
+      similarity = log1p(number of inliers); < 3 matches = 0 inliers. No min-size rule."
+    why: "the pre-registered summary-statistic observers (F1-F10, + layout/minutiae) were at chance across
+      dates (AUC 0.50-0.56 at every distance, c0), so they cannot test face vs flank. Position-based
+      matching is the established method for zebra stripes (HotSpotter was built on this dataset).
+      Same metrics, thresholds, NaN rule and bootstrap as pre-registered. Decided before any
+      position-based result was seen."
+  - id: A2
+    when: "2026-11-22 ~08:45 IST (Checkpoint 2)"
+    what: "the learned observer (MegaDescriptor-L-384, zero-shot, cosine) moved from 'only if time allows' to
+      main observer; inputs = the percept rendered as the human-view display image, square-padded to 384 px."
+    why: "same reason as A1. Caveat: MegaDescriptor's training data includes GiraffeZebraID (GZGC)."
+  - id: A3
+    when: "2026-11-22 ~09:00 IST (plan change, demo today)"
+    what: "200 bootstrap resamples are final (not 1,000); rump, c2, retention matrix, pairwise CDF dropped."
+    why: "time."
+  - id: A4
+    when: "2026-11-22 ~09:55 IST (heatmap follow-up)"
+    what: "add observer 'registered_layout': align query to gallery with the RANSAC affine of A1 (query->gallery,
+      fitted on the same percept pixels; identity transform if < 4 inliers), warp the query rho map (bilinear)
+      and mask (nearest) into the gallery frame, similarity = Pearson r of rho over the overlapping mask.
+      Overlap < 16 px or zero variance -> miss (minimum similarity, as the NaN rule). Percepts only."
+    why: "tests whether the coarse black-fraction layout carries identity once pose is factored out (the
+      unregistered layout L did not). Design, 4-inlier and 16-px thresholds fixed before any result; one
+      smoke-test group (flank c0 32 m) was looked at to check the code ran, nothing was changed after it."

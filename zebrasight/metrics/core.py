@@ -81,6 +81,12 @@ def _apply_misses(S: np.ndarray, q_bad: np.ndarray, g_bad: np.ndarray) -> np.nda
 def similarity(sp: Split, observer: str, cols: dict, families: list[str] | None = None) -> np.ndarray:
     """S (n_query x n_gallery) for one observer."""
     F = cols["F"]
+    if observer == "megadesc":  # zero-shot MegaDescriptor embeddings (L2-normalised): cosine; missing -> miss
+        E = [c for c in sp.g.columns if c.startswith("E_")]
+        ga, qa = sp.g[E].to_numpy(float), sp.q[E].to_numpy(float)
+        gb, qb = np.isnan(ga).any(1), np.isnan(qa).any(1)
+        S = np.nan_to_num(qa) @ np.nan_to_num(ga).T
+        return _apply_misses(S, qb, gb)
     if observer == "raw_pixel":
         ga = np.nan_to_num(sp.g[cols["R"]].to_numpy(float), nan=1.0)
         qa = np.nan_to_num(sp.q[cols["R"]].to_numpy(float), nan=1.0)
@@ -101,6 +107,8 @@ def similarity(sp: Split, observer: str, cols: dict, families: list[str] | None 
             continue
         blocks_g.append(sp.g[cols[fam]].to_numpy(float))
         blocks_q.append(sp.q[cols[fam]].to_numpy(float))
+    if not blocks_g:  # e.g. layout alone with < 3 valid gallery rows: nothing to compare, all ties
+        return np.zeros((len(sp.q), len(sp.g)))
     gx, qx = _zscore(np.hstack(blocks_g), np.hstack(blocks_q))
     if observer.endswith("_lda"):
         y = sp.gz
@@ -113,6 +121,16 @@ def similarity(sp: Split, observer: str, cols: dict, families: list[str] | None 
                 pass  # degenerate scatter: fall back to nearest neighbour in z-score space
     S = _neg_euclid(qx, gx)
     return _apply_misses(S, _invalid(sp.q, F), _invalid(sp.g, F))
+
+
+def similarity_from_pairs(sp: Split, table: pd.DataFrame, value: str = "inliers") -> np.ndarray:
+    """S from a long (qkey, gkey, value) pair table (HotSpotter); similarity = log1p(value); missing = 0.
+    value="layout_r" (registered layout, A4): similarity = r; missing/NaN -> miss (minimum similarity)."""
+    lut = dict(zip(zip(table.qkey, table.gkey), table[value]))
+    if value == "inliers":
+        return np.log1p(np.array([[lut.get((q, g), 0) for g in sp.g.key] for q in sp.q.key], float))
+    S = np.array([[lut.get((q, g), np.nan) for g in sp.g.key] for q in sp.q.key], float)
+    return np.where(np.isfinite(S), S, -2.0)  # r >= -1, so -2 is below every real pair
 
 
 # ---- pair metrics ---------------------------------------------------------------------------------

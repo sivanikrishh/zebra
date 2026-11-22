@@ -70,3 +70,23 @@ def test_bootstrap_and_fano():
     assert np.nanpercentile(b, 2.5) <= auc(s, l) <= np.nanpercentile(b, 97.5)
     assert fano_bits(1.0, 20) == pytest.approx(math.log2(20))
     assert fano_bits(1 / 20, 20) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_registered_layout_r():
+    """A4: identical maps -> r = 1; a pure shift is undone by the affine; tiny overlap -> NaN (a miss)."""
+    from zebrasight.metrics.hotspotter import layout_r
+
+    rng = np.random.default_rng(0)
+    rho = rng.random((40, 50)).astype(np.float32)
+    mask = np.ones_like(rho, bool)
+    assert layout_r((rho, mask), (rho, mask), None, 0) == pytest.approx(1.0)  # identity (< 4 inliers)
+    shifted = np.zeros_like(rho)
+    shifted[:, 5:] = rho[:, :-5]  # query content sits 5 px right of the gallery's
+    smask = np.zeros_like(mask)
+    smask[:, 5:] = True
+    M = np.array([[1.0, 0.0, -5.0], [0.0, 1.0, 0.0]])  # query -> gallery
+    assert layout_r((shifted, smask), (rho, mask), M, 10) == pytest.approx(1.0, abs=1e-5)
+    assert layout_r((shifted, smask), (rho, mask), M, 3) < 0.5  # < 4 inliers: identity, misaligned
+    tiny = np.zeros_like(mask)
+    tiny[0, :3] = True
+    assert math.isnan(layout_r((rho, tiny), (rho, mask), None, 0))

@@ -1,0 +1,50 @@
+{
+ "regimes": {
+  "day": {
+   "luminance_cd_m2": 16.0,
+   "acuity_cpd": 23.3,
+   "colour": true,
+   "channels": "L + S (colour)",
+   "integration_ms": 30.0,
+   "photon_count_white_per_px": 4800000.0,
+   "photon_noise_rel_sd_at_mid_grey": 0.0006454972243679028,
+   "neural_noise_sd_x_mean": 0.01
+  },
+  "dusk": {
+   "luminance_cd_m2": 0.16,
+   "acuity_cpd": 12.46,
+   "colour": true,
+   "channels": "L + S (colour)",
+   "integration_ms": 30.0,
+   "photon_count_white_per_px": 48000.0,
+   "photon_noise_rel_sd_at_mid_grey": 0.006454972243679028,
+   "neural_noise_sd_x_mean": 0.01
+  },
+  "night": {
+   "luminance_cd_m2": 1.6e-05,
+   "acuity_cpd": 1.61,
+   "colour": false,
+   "channels": "rod only (grey)",
+   "integration_ms": 100.0,
+   "photon_count_white_per_px": 16.0,
+   "photon_noise_rel_sd_at_mid_grey": 0.35355339059327373,
+   "neural_noise_sd_x_mean": 0.01
+  }
+ },
+ "aliases": {
+  "dawn": "dusk"
+ },
+ "conditions": {
+  "c0": "day",
+  "c1": "day",
+  "c2": "day",
+  "c3": "day",
+  "c4": "day",
+  "c5": "day",
+  "c6": "day",
+  "c7": "dawn",
+  "c8": "dusk",
+  "c9": "night"
+ },
+ "note": "dawn (c7) is an alias of dusk (c8): same luminance regime, computed once. Colour is on when luminance >= 0.02 cd/m2 (Roth et al. 2008). Noise levels are already baked into the textures."
+}

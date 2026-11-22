@@ -1,0 +1,11 @@
+{
+ "headset": "Meta Quest 3",
+ "pixels_per_degree": 25.0,
+ "pixels_per_degree_grade": "C (approximate headset spec)",
+ "display_max_cpd": 12.5,
+ "zebra_acuity_cpd": 23.3,
+ "magnification": 1.864,
+ "formula": "M = zebra acuity / display Nyquist = 23.3 / (25 / 2) = 1.86",
+ "hud": "the HUD always shows the TRUE distance; the loupe only enlarges the image angularly by M",
+ "why": "The headset can show at most ~12.5 cycles/deg, the zebra resolves 23.3. Without the loupe, detail the zebra can see would be lost on the display. The loupe magnifies the zebra's view by M so the finest zebra-resolvable stripes fit the headset's pixels."
+}

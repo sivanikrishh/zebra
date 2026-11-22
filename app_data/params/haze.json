@@ -1,0 +1,564 @@
+{
+ "formula": "per channel c: I = I0 * t + A * (1 - t),  t = exp(-beta_c * d)   (d in metres, linear light)",
+ "angstrom": "beta_c = beta_550 * (lambda_c / 550 nm)^(-alpha)",
+ "channel_wavelengths_nm": {
+  "R": 611.0,
+  "G": 549.0,
+  "B": 464.0
+ },
+ "cone_betas": "beta_L = sum_c rgb_to_LS[0][c] * beta_c, beta_S = sum_c rgb_to_LS[1][c] * beta_c, beta_rod = sum_c rgb_to_rod[0][c] * beta_c (rows sum to 1); exact for grey airlight mixing, a close approximation otherwise",
+ "visual_range": "Koschmieder V = ln(1/0.02) / beta_550 = 3.912 / beta_550; WMO MOR = ln(1/0.05) / beta_550 = 2.996 / beta_550",
+ "conditions": {
+  "c0": {
+   "aerosol": "clear",
+   "alias_of": null,
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  },
+  "c1": {
+   "aerosol": "haze",
+   "alias_of": null,
+   "applied_in_model_textures": true,
+   "beta_550_per_m": 0.002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.0017444073933844569,
+    "G": 0.002004737176832102,
+    "B": 0.002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.0020558406046903986,
+    "S": 0.002440667999408293
+   },
+   "beta_rod_per_m": 0.002182104936229562,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 1956.011502714073,
+   "mor_m": 1497.8661367769953
+  },
+  "c2": {
+   "aerosol": "dust",
+   "alias_of": null,
+   "applied_in_model_textures": true,
+   "beta_550_per_m": 0.01,
+   "angstrom_alpha": 0.2,
+   "beta_rgb_per_m": {
+    "R": 0.009791839716407146,
+    "G": 0.010003640335875474,
+    "B": 0.01034591585231797
+   },
+   "beta_LS_per_m": {
+    "L": 0.0100353368831801,
+    "S": 0.010307548895496817
+   },
+   "beta_rod_per_m": 0.010126415781272227,
+   "airlight_linear_rgb_relative": [
+    0.8490302861232063,
+    0.679224228898565,
+    0.46696665736776355
+   ],
+   "airlight_LS_relative": [
+    0.6647012802697968,
+    0.4915124463936744
+   ],
+   "airlight_rod_relative": 0.6045178648710883,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8490302861232063,
+      0.679224228898565,
+      0.46696665736776355
+     ],
+     "absolute_luminance_cd_m2": 11.2
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8490302861232063,
+      0.679224228898565,
+      0.46696665736776355
+     ],
+     "absolute_luminance_cd_m2": 0.11199999999999999
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8490302861232063,
+      0.679224228898565,
+      0.46696665736776355
+     ],
+     "absolute_luminance_cd_m2": 1.12e-05
+    }
+   },
+   "koschmieder_range_m": 391.2023005428146,
+   "mor_m": 299.57322735539907
+  },
+  "c3": {
+   "aerosol": "dust",
+   "alias_of": null,
+   "applied_in_model_textures": true,
+   "beta_550_per_m": 0.03,
+   "angstrom_alpha": 0.2,
+   "beta_rgb_per_m": {
+    "R": 0.029375519149221437,
+    "G": 0.030010921007626423,
+    "B": 0.03103774755695391
+   },
+   "beta_LS_per_m": {
+    "L": 0.030106010649540303,
+    "S": 0.030922646686490453
+   },
+   "beta_rod_per_m": 0.030379247343816678,
+   "airlight_linear_rgb_relative": [
+    0.8490302861232063,
+    0.679224228898565,
+    0.46696665736776355
+   ],
+   "airlight_LS_relative": [
+    0.6647012802697968,
+    0.4915124463936744
+   ],
+   "airlight_rod_relative": 0.6045178648710883,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8490302861232063,
+      0.679224228898565,
+      0.46696665736776355
+     ],
+     "absolute_luminance_cd_m2": 11.2
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8490302861232063,
+      0.679224228898565,
+      0.46696665736776355
+     ],
+     "absolute_luminance_cd_m2": 0.11199999999999999
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8490302861232063,
+      0.679224228898565,
+      0.46696665736776355
+     ],
+     "absolute_luminance_cd_m2": 1.12e-05
+    }
+   },
+   "koschmieder_range_m": 130.40076684760487,
+   "mor_m": 99.8577424517997
+  },
+  "c4": {
+   "aerosol": "clear",
+   "alias_of": null,
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  },
+  "c5": {
+   "aerosol": "clear",
+   "alias_of": null,
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  },
+  "c6": {
+   "aerosol": "clear",
+   "alias_of": null,
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  },
+  "c7": {
+   "aerosol": "clear",
+   "alias_of": "c8",
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  },
+  "c8": {
+   "aerosol": "clear",
+   "alias_of": null,
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  },
+  "c9": {
+   "aerosol": "clear",
+   "alias_of": null,
+   "applied_in_model_textures": false,
+   "beta_550_per_m": 0.0002,
+   "angstrom_alpha": 1.3,
+   "beta_rgb_per_m": {
+    "R": 0.00017444073933844568,
+    "G": 0.0002004737176832102,
+    "B": 0.0002494756238324766
+   },
+   "beta_LS_per_m": {
+    "L": 0.00020558406046903985,
+    "S": 0.00024406679994082932
+   },
+   "beta_rod_per_m": 0.00021821049362295622,
+   "airlight_linear_rgb_relative": [
+    0.8260139321016549,
+    0.9086153253118203,
+    1.0325174151270686
+   ],
+   "airlight_LS_relative": [
+    0.9192977850712495,
+    1.0185126444977703
+   ],
+   "airlight_rod_relative": 0.9528387596224204,
+   "airlight_by_regime": {
+    "day": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 14.4
+    },
+    "dusk": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 0.14400000000000002
+    },
+    "night": {
+     "relative_linear_rgb": [
+      0.8260139321016549,
+      0.9086153253118203,
+      1.0325174151270686
+     ],
+     "absolute_luminance_cd_m2": 1.44e-05
+    }
+   },
+   "koschmieder_range_m": 19560.115027140728,
+   "mor_m": 14978.661367769953
+  }
+ },
+ "note": "Airlight is relative to a sunlit white (= 1) because the textures are relative too; the haze/scene ratio is the same in every regime. Only the absolute airlight (cd/m2) dims at dusk/night. In the model, aerosol 'clear' (c0, c4-c9) is NOT hazed: c0 textures contain no haze at all."
+}
