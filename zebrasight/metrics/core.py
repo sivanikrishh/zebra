@@ -104,9 +104,13 @@ def similarity(sp: Split, observer: str, cols: dict, families: list[str] | None 
     gx, qx = _zscore(np.hstack(blocks_g), np.hstack(blocks_q))
     if observer.endswith("_lda"):
         y = sp.gz
-        if len(np.unique(y)) >= 2 and gx.shape[0] > len(np.unique(y)):
-            lda = LinearDiscriminantAnalysis(solver="eigen", shrinkage="auto").fit(gx, y)
-            gx, qx = lda.transform(gx), lda.transform(qx)
+        keep = gx.std(axis=0) > 1e-9  # constant columns (e.g. zero junctions at range) make Sw singular
+        if keep.sum() >= 1 and len(np.unique(y)) >= 2 and gx.shape[0] > len(np.unique(y)):
+            try:
+                lda = LinearDiscriminantAnalysis(solver="eigen", shrinkage="auto").fit(gx[:, keep], y)
+                gx, qx = lda.transform(gx[:, keep]), lda.transform(qx[:, keep])
+            except np.linalg.LinAlgError:
+                pass  # degenerate scatter: fall back to nearest neighbour in z-score space
     S = _neg_euclid(qx, gx)
     return _apply_misses(S, _invalid(sp.q, F), _invalid(sp.g, F))
 
