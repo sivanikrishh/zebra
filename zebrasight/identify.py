@@ -1,8 +1,10 @@
 """Who is this zebra? Zero-shot individual identification from flank stripes (no training).
 
     python -m zebrasight.identify build      [--regions data/regions.parquet] [--region flank]
-    python -m zebrasight.identify evaluate   [--region flank]
+    python -m zebrasight.identify evaluate   [--region flank] [--open-set] [--far 0.05]
     python -m zebrasight.identify query IMAGE [--facing left|right] [--box X0 Y0 X1 Y1] [--top 5] [--gallery gallery|all]
+                                              [--unknown-threshold auto|VALUE] [--far 0.05]
+                                              [--distance M] [--light day|dusk|night]
 
 build     embeds every photo region of the chosen kind (MegaDescriptor-L-384, the same preprocessing as
           zebrasight.metrics.megadesc: region mask, outside grey, square pad, 384 px) and saves
@@ -13,6 +15,17 @@ evaluate  closed-set identification: every "query" photo (later dates) is ranked
 query     a new photo: Mask R-CNN finds the zebra (the largest one, or the one best matching --box),
           the v2 trunk rule cuts the flank (facing direction from --facing; GZGC side views are "left"),
           MegaDescriptor embeds it, and the closest known zebras are printed with their similarity.
+
+--unknown-threshold auto: "unknown zebra" when the best similarity is below a threshold calibrated on
+          gallery photos only (leave-one-out: each gallery photo's best score against OTHER zebras, cut at
+          the --far quantile). evaluate --open-set holds 20% of zebras out as strangers and reports their
+          false-accept rate on later-day photos. Gallery photos of one zebra share a day, so true matches
+          across days score lower than the calibration assumes: expect known zebras to be rejected often.
+--distance/--light: the flank crop first goes through the full zebra-eye pipeline (scale from the
+          body-length rule, condition c0 / c8 / c9), and the known zebras' photos are rendered the same way
+          (cached per setting in outputs/identify/), so like is compared with like, as in the study.
+          Matching an eye-rendered query against plain colour photos does NOT work: on a test photo the
+          true zebra fell from 0.59 to 0.45 similarity even at 2 m, from the rendering alone.
 
 Similarity = cosine of L2-normalised embeddings; a zebra's score = its best-matching gallery photo.
 This is CLOSED-SET: it always names the nearest known zebra, even for an animal it has never seen.
@@ -62,6 +75,20 @@ def topk_hits(scores: np.ndarray, ids: np.ndarray, truth: np.ndarray, k: int) ->
     """(n,) bool: is the true zebra among the k best-scoring zebras?"""
     top = np.argsort(-scores, axis=1)[:, :k]
     return (ids[top] == truth[:, None]).any(axis=1)
+
+
+def impostor_best(g: np.ndarray, g_ids: np.ndarray) -> np.ndarray:
+    """(m,) for each gallery photo: its best cosine against photos of OTHER zebras (leave-one-out).
+
+    This is what a stranger's best score looks like, measured on gallery photos alone."""
+    s = g @ g.T
+    s[g_ids[:, None] == g_ids[None, :]] = -np.inf
+    return s.max(axis=1)
+
+
+def calibrate_threshold(g: np.ndarray, g_ids: np.ndarray, far: float = 0.05) -> float:
+    """Similarity above which only a fraction `far` of gallery impostor-best scores lie (gallery only)."""
+    return float(np.quantile(impostor_best(g, g_ids), 1.0 - far))
 
 
 def bootstrap_ci(hits: np.ndarray, groups: np.ndarray, n_boot: int = 1000, seed: int = 0) -> tuple[float, float]:
@@ -132,6 +159,62 @@ def evaluate(region: str) -> dict:
     return res
 
 
+def evaluate_open_set(region: str, far: float = 0.05, frac_strangers: float = 0.2, seed: int = 0) -> dict:
+    """Open-set check of the unknown-zebra threshold.
+
+    A random `frac_strangers` of zebras is removed from the gallery (strangers). The threshold is calibrated
+    on the remaining gallery photos only (leave-one-out impostor best at the target `far`). Then on the
+    later-day query photos: strangers' false-accept rate, and known zebras' accept rate and correct-and-
+    accepted rate."""
+    df = pd.read_parquet(emb_path(region))
+    zebras = np.array(sorted(df.zebra_id.unique()))
+    rng = np.random.default_rng(seed)
+    strangers = set(rng.choice(zebras, size=int(round(frac_strangers * len(zebras))), replace=False))
+    gal = df[(df.split == "gallery") & ~df.zebra_id.isin(strangers)]
+    qry = df[df.split == "query"]
+    g, g_ids = emb_matrix(gal), gal.zebra_id.to_numpy()
+    thr = calibrate_threshold(g, g_ids, far)
+    ids, scores = rank_zebras(emb_matrix(qry), g, g_ids)
+    best, top = scores.max(axis=1), ids[scores.argmax(axis=1)]
+    is_stranger = qry.zebra_id.isin(strangers).to_numpy()
+    known_q, truth = ~is_stranger & qry.zebra_id.isin(gal.zebra_id).to_numpy(), qry.zebra_id.to_numpy()
+    accepted = best >= thr
+    return {"region": region, "target_far_on_gallery": far, "threshold": round(thr, 4),
+            "known_zebras": int(len(ids)), "stranger_zebras": len(strangers),
+            "stranger_query_photos": int(is_stranger.sum()), "known_query_photos": int(known_q.sum()),
+            "false_accept_rate_strangers": float(accepted[is_stranger].mean()),
+            "accept_rate_known": float(accepted[known_q].mean()),
+            "correct_and_accepted_known": float((accepted & (top == truth))[known_q].mean()),
+            "top1_known_without_threshold": float((top == truth)[known_q].mean())}
+
+
+# ---- optional: what a zebra would see at a distance ----------------------------------------------------
+
+LIGHT_TO_COND = {"day": "c0", "dusk": "c8", "night": "c9"}
+
+
+def through_zebra_eye(crop: np.ndarray, mask: np.ndarray, cm_per_px: float, distance_m: float, light: str,
+                      image_id: str) -> tuple[np.ndarray, np.ndarray]:
+    """Run a flank crop through the full pipeline (geometry -> scene -> atmosphere -> eye) and render the
+    percept for display exactly as zebrasight.metrics.megadesc does for stored percepts."""
+    import torch
+
+    from zebrasight.config import load_config, make_cond
+    from zebrasight.metrics.megadesc import percept_rgb
+    from zebrasight.pipeline.pipeline import Pipeline
+    from zebrasight.vrpack.params import matrices
+
+    grid = load_config("grid")
+    pipe = Pipeline(list(grid.all_stages), eye_cfg=load_config("eye"))
+    img = torch.from_numpy(np.ascontiguousarray(crop)).permute(2, 0, 1).float()
+    m = torch.from_numpy(mask.astype(np.float32))
+    meta = {"zebra_id": "query", "image_id": image_id, "session_id": "query", "region": "flank"}
+    p = pipe.run(img, cm_per_px, m, make_cond(LIGHT_TO_COND[light], distance_m), meta=meta)
+    pd_ = {"y": p.y[0, 0].float().cpu().numpy(), "s": None if p.s is None else p.s[0, 0].float().cpu().numpy(),
+           "mask": p.mask[0, 0].cpu().numpy() > 0.5}
+    return percept_rgb(pd_, matrices()[4]), pd_["mask"]
+
+
 # ---- query a new photo --------------------------------------------------------------------------------
 
 def flank_from_photo(path: Path, facing: str, box=None):
@@ -176,42 +259,103 @@ def flank_from_photo(path: Path, facing: str, box=None):
     return crop, flank[fy0:fy1, fx0:fx1], (x0, y0, x1, y1), float(scores[j])
 
 
-def query(path: Path, facing: str, box, top: int, gallery: str, region: str = "flank") -> pd.DataFrame:
+def eye_gallery(region: str, distance_m: float, light: str, splits: tuple[str, ...]) -> pd.DataFrame:
+    """Known zebras' photos seen through the same zebra-eye model (like with like), cached per setting."""
     import torch
 
+    from zebrasight.data.load import load_region
     from zebrasight.metrics import megadesc
 
-    df = pd.read_parquet(emb_path(region))
-    gal = df if gallery == "all" else df[df.split == "gallery"]
+    out = OUT_DIR / f"embeddings_{region}_{light}_{distance_m:g}m_{'-'.join(splits)}.parquet"
+    if out.exists():
+        return pd.read_parquet(out)
+    reg = pd.read_parquet(REGIONS)
+    reg = reg[(reg.region == region) & reg.split.isin(splits)].reset_index(drop=True)
+    print(f"rendering {len(reg)} known photos at {distance_m:g} m, {light} (once; cached to {out.name})", flush=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = megadesc.load_model(device)
+
+    def items():
+        for _, r in reg.iterrows():
+            img, mask, _ = load_region(r)
+            rgb, m = through_zebra_eye(img[0].permute(1, 2, 0).numpy(), mask[0, 0].numpy() > 0.5,
+                                       float(r.cm_per_px), distance_m, light, str(r.image_id))
+            meta = {"key": f"{r.ann_id}_{r.region}", "zebra_id": r.zebra_id, "image_id": r.image_id,
+                    "ann_id": int(r.ann_id), "split": r.split, "date": str(r.date), "region": r.region}
+            yield meta, (megadesc.to_input(rgb, m) if m.any() else None)
+
+    df = megadesc.run(items(), model, device).dropna(subset=["E_0000"]).reset_index(drop=True)
+    df.to_parquet(out, index=False)
+    return df
+
+
+def query(path: Path, facing: str, box, top: int, gallery: str, region: str = "flank",
+          unknown_threshold: str | None = None, far: float = 0.05,
+          distance_m: float | None = None, light: str = "day") -> pd.DataFrame:
+    import torch
+
+    from zebrasight.data.gzgc import BODY_LENGTH_CM
+    from zebrasight.metrics import megadesc
+
+    splits = ("gallery", "query") if gallery == "all" else ("gallery",)
     crop, m, zbox, det = flank_from_photo(path, facing, box)
+    print(f"zebra found at {zbox} (detector score {det:.2f}); flank {m.shape[1]}x{m.shape[0]} px")
+    if distance_m is not None:
+        cm_per_px = BODY_LENGTH_CM / max(1, zbox[2] - zbox[0])  # same body-length scale as the GZGC loader
+        crop, m = through_zebra_eye(crop, m, cm_per_px, distance_m, light, path.name)
+        print(f"seen through the zebra-eye model at {distance_m:g} m, {light}: percept {m.shape[1]}x{m.shape[0]} px; "
+              f"known zebras are seen the same way (like with like)")
+        if not m.any():
+            raise SystemExit("the flank is too small to see at this distance")
+        gal = eye_gallery(region, distance_m, light, splits)
+    else:
+        df = pd.read_parquet(emb_path(region))
+        gal = df[df.split.isin(splits)]
+    g, g_ids = emb_matrix(gal), gal.zebra_id.to_numpy()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = megadesc.load_model(device)
     q = megadesc.embed(model, [megadesc.to_input(crop, m)], device)
-    ids, scores = rank_zebras(q, emb_matrix(gal), gal.zebra_id.to_numpy())
+    ids, scores = rank_zebras(q, g, g_ids)
     order = np.argsort(-scores[0])[:top]
     res = pd.DataFrame({"rank": np.arange(1, len(order) + 1), "zebra_id": ids[order],
                         "similarity": np.round(scores[0][order], 3)})
-    print(f"zebra found at {zbox} (detector score {det:.2f}); flank {m.shape[1]}x{m.shape[0]} px; "
-          f"compared with {len(ids)} known zebras ({len(gal)} photos)")
+    print(f"compared with {len(ids)} known zebras ({len(gal)} photos)")
     print(res.to_string(index=False))
-    print("closed set: the best match is always a known zebra, even for a new animal")
+    if unknown_threshold is None:
+        print("closed set: the best match is always a known zebra, even for a new animal")
+    else:
+        thr = calibrate_threshold(g, g_ids, far) if unknown_threshold == "auto" else float(unknown_threshold)
+        how = f"calibrated on gallery photos at {far:.0%} false accepts" if unknown_threshold == "auto" else "given"
+        verdict = f"best match {ids[order[0]]}" if scores[0][order[0]] >= thr else "UNKNOWN ZEBRA (no match above threshold)"
+        print(f"threshold {thr:.3f} ({how}): {verdict}")
     return res
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    b = sub.add_parser("build")
-    b.add_argument("--regions", type=Path, default=REGIONS)
-    b.add_argument("--region", default="flank")
-    e = sub.add_parser("evaluate")
-    e.add_argument("--region", default="flank")
-    q = sub.add_parser("query")
-    q.add_argument("image", type=Path)
-    q.add_argument("--facing", choices=["left", "right"], default="left")
-    q.add_argument("--box", type=float, nargs=4, default=None)
-    q.add_argument("--top", type=int, default=5)
-    q.add_argument("--gallery", choices=["gallery", "all"], default="gallery")
+    sub = ap.add_subparsers(dest="cmd", required=True, metavar="{build,evaluate,query}")
+    b = sub.add_parser("build", help="fingerprint every known zebra photo (run once, ~2 min on a laptop GPU)")
+    b.add_argument("--regions", type=Path, default=REGIONS, help="region table to read (default data/regions.parquet)")
+    b.add_argument("--region", default="flank", help="body region to use (default flank)")
+    e = sub.add_parser("evaluate", help="score accuracy: earliest-day photos are known, later-day photos are tested")
+    e.add_argument("--region", default="flank", help="body region to use (default flank)")
+    e.add_argument("--open-set", action="store_true",
+                   help="also test the unknown-zebra threshold with 20%% of zebras held out as strangers")
+    e.add_argument("--far", type=float, default=0.05, help="target false-accept rate for the threshold (default 0.05)")
+    q = sub.add_parser("query", help="name the closest known zebras for a new photo")
+    q.add_argument("image", type=Path, help="photo file with a side-on zebra")
+    q.add_argument("--facing", choices=["left", "right"], default="left", help="which way the head points (default left)")
+    q.add_argument("--box", type=float, nargs=4, default=None, metavar=("X0", "Y0", "X1", "Y1"),
+                   help="pick the zebra closest to this box in a group photo")
+    q.add_argument("--top", type=int, default=5, help="how many matches to list (default 5)")
+    q.add_argument("--gallery", choices=["gallery", "all"], default="gallery",
+                   help="known photos to compare with: earliest-day only (default) or all")
+    q.add_argument("--unknown-threshold", default=None, metavar="auto|VALUE",
+                   help="say 'unknown zebra' below this similarity; 'auto' calibrates it on gallery photos only")
+    q.add_argument("--far", type=float, default=0.05, help="false-accept rate used by --unknown-threshold auto")
+    q.add_argument("--distance", type=float, default=None, metavar="M",
+                   help="first show the photo through the zebra-eye model at this distance in metres")
+    q.add_argument("--light", choices=list(LIGHT_TO_COND), default="day", help="light for --distance (default day)")
     a = ap.parse_args()
     t0 = time.perf_counter()
     if a.cmd == "build":
@@ -219,8 +363,13 @@ def main() -> None:
     elif a.cmd == "evaluate":
         for k, v in evaluate(a.region).items():
             print(f"{k}: {v}")
+        if a.open_set:
+            print("--- open set ---")
+            for k, v in evaluate_open_set(a.region, a.far).items():
+                print(f"{k}: {v}")
     else:
-        query(a.image, a.facing, a.box, a.top, a.gallery)
+        query(a.image, a.facing, a.box, a.top, a.gallery, unknown_threshold=a.unknown_threshold, far=a.far,
+              distance_m=a.distance, light=a.light)
     print(f"done in {time.perf_counter() - t0:.0f} s")
 
 

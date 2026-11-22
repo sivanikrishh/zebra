@@ -1,6 +1,6 @@
 import numpy as np
 
-from zebrasight.identify import bootstrap_ci, rank_zebras, topk_hits
+from zebrasight.identify import bootstrap_ci, calibrate_threshold, impostor_best, rank_zebras, topk_hits
 
 
 def unit(x):
@@ -24,6 +24,20 @@ def test_topk_hits():
     truth = np.array(["A", "C"])
     assert topk_hits(scores, ids, truth, 1).tolist() == [True, False]
     assert topk_hits(scores, ids, truth, 2).tolist() == [True, True]
+
+
+def test_impostor_best_ignores_same_zebra():
+    g = unit([[1, 0], [0.99, 0.1], [0, 1]])
+    ids = np.array(["A", "A", "B"])
+    best = impostor_best(g, ids)
+    assert np.isclose(best[0], float(g[0] @ g[2]))  # not its own zebra's near-identical photo
+    assert np.isclose(best[2], max(float(g[2] @ g[0]), float(g[2] @ g[1])))
+
+
+def test_threshold_quantile():
+    g = unit([[1, 0], [0.8, 0.6], [0.6, 0.8], [0, 1]])
+    ids = np.array(["A", "B", "C", "D"])
+    assert calibrate_threshold(g, ids, far=0.0) == impostor_best(g, ids).max()
 
 
 def test_bootstrap_ci_brackets_mean():
