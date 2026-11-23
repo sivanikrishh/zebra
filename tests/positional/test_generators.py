@@ -101,3 +101,28 @@ def test_determinism():
     assert np.array_equal(G.patch_shuffle(y, MASK, synth.BL, 0.1, 3)[0], G.patch_shuffle(y, MASK, synth.BL, 0.1, 3)[0])
     assert np.array_equal(G.morph_positional(y, MASK, synth.BL, 0.1, 2, 3), G.morph_positional(y, MASK, synth.BL, 0.1, 2, 3))
     assert not np.array_equal(G.phase_scramble(y, MASK, 3), G.phase_scramble(y, MASK, 4))
+
+
+def _period_x(img, rows, cols=slice(None)):
+    """Dominant stripe period (px) along x from the mean FFT of the given rows (and columns)."""
+    x = img[rows, cols] - img[rows, cols].mean(axis=1, keepdims=True)
+    p = (np.abs(np.fft.rfft(x, axis=1)) ** 2).mean(axis=0)
+    f = np.fft.rfftfreq(img.shape[1])
+    k = int(np.argmax(p[1:]) + 1)
+    return 1.0 / f[k]
+
+
+def test_coat_rescale_identity_outside_and_spacing():
+    y = synth.stripes(seed=3, wobble=0.0)
+    assert np.allclose(G.coat_rescale(y, MASK, 1.0)[MASK], y[MASK], atol=1e-4)
+    out = G.coat_rescale(y, MASK, 1.5)
+    assert np.array_equal(out[~MASK], y[~MASK].astype(np.float32))
+    big = np.zeros_like(MASK)
+    big[10:-10, 10:-10] = True
+    # centre region only: there the resampled coat comes from inside the mask (edges may need extension)
+    rows = slice(synth.H // 2 - 10, synth.H // 2 + 10)
+    cols = slice(synth.W // 2 - synth.W // 4, synth.W // 2 + synth.W // 4)
+    p0 = _period_x(y, rows, cols)
+    for f in (0.75, 1.5):
+        p = _period_x(G.coat_rescale(y, big, f), rows, cols)
+        assert abs(p / p0 - f) < 0.1 * f, (f, p0, p)

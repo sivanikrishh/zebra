@@ -132,6 +132,27 @@ def morph_style(y, mask, bl_px: float, width_change: float = 0.0, contrast: floa
     return np.where(mask, out, y).astype(np.float32)
 
 
+def coat_rescale(y, mask, factor: float):
+    """D8 (Pattern Lab): stripe SPACING x factor (> 1 = wider spacing, < 1 = denser stripes). The coat inside
+    the mask is resampled about the mask centroid; the animal outline and everything outside the mask are
+    unchanged. Where a denser pattern needs coat from beyond the mask edge, the nearest coat pixel is used
+    (edge streaks; keep factor near 0.75-1.5)."""
+    if factor <= 0:
+        raise ValueError("factor must be > 0")
+    y = np.asarray(y, np.float32)
+    if not mask.any():
+        return y.copy()
+    _, idx = ndi.distance_transform_edt(~mask, return_indices=True)
+    src = y[idx[0], idx[1]]                                   # coat extended outward by its nearest pixel
+    ys, xs = np.nonzero(mask)
+    cy, cx = float(ys.mean()), float(xs.mean())
+    # output pixel p samples the coat at c + (p - c) / factor
+    M = np.array([[1 / factor, 0, cx - cx / factor], [0, 1 / factor, cy - cy / factor]], np.float32)
+    w = cv2.warpAffine(src, M, (y.shape[1], y.shape[0]), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                       borderMode=cv2.BORDER_REFLECT)
+    return np.where(mask, w, y).astype(np.float32)
+
+
 def transplant(recipient: View, donor: View, part: str, feather_bl: float | None = None, g2q=None):
     """D7: the donor's `part` (frame.parts rule) pasted into the recipient.
 

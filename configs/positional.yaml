@@ -94,6 +94,15 @@ projection:                                  # Part F: rough full-run time proje
   dgx_gpu_speedup: 5.0                       # percept generation, data-centre GPU vs RTX 3050 Laptop (assumed ~5x)
   generator_passes: 60                       # ~ladder passes for Part D steps: bands 10 + shuffle 12 + scramble 3 + silhouette 2 + morph 24 + transplant ~9 (occlusion maps excluded)
 
+pattern_lab:                                 # app Pattern Lab (zebrasight/patternlab.py): stripe edits on original crops, real inference
+  regions: [flank, face]                     # validated study results exist; full body = results pending (no values shown)
+  thickness: [-0.4, -0.2, -0.1, 0.0, 0.1, 0.2, 0.4]   # dark-stripe width change (fraction of stripe width), the D6 range (generators.morph_width_change)
+  contrast: [0.2, 0.4, 0.6, 0.8, 1.0]        # contrast x around the region mean; extends the D6 range (0.5-1.0) down to near-uniform
+  arrangement: [0.0, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0]   # RMS displacement in stripe periods; D6 range (<= 0.2) extended to full scrambling
+  spacing: [0.85, 1.0, 1.15, 1.3, 1.5]       # coat_rescale factor; denser than 0.85 needs coat from beyond the mask edge (streaks)
+  smooth_period: 2.0                         # displacement smoothness in stripe periods (= generators.morph_smooth_period)
+  seed: 0                                    # fixed random field for the arrangement edit (reproducible)
+
 run:
   n_jobs: 4                                  # CPU workers for joblib steps; Windows laptop default, raise on the DGX
   device: auto                               # cuda if available else cpu

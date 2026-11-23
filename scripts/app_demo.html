@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZebraSight Prototype</title>
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e2e0d8; --accent: #2f5d8a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --panel: #201f1c; --ink: #ecebe6; --muted: #a3a29b; --line: #34332e; --accent: #7fb0e0;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 22px 16px 40px; }
+.eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.badge { display: inline-block; font-size: 10.5px; letter-spacing: 0; text-transform: none; font-weight: 600; padding: 1px 8px;
+  border-radius: 99px; border: 1px solid var(--line); color: var(--muted); margin-left: 8px; }
+h1 { font-size: 22px; line-height: 1.3; margin: 4px 0 14px; font-weight: 650; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-bottom: 14px; }
+select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 10px; cursor: pointer; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 12px; }
+.seg button.on { background: var(--accent); color: #fff; }
+.walk-card { display: grid; grid-template-columns: minmax(0, 1fr) 260px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; overflow: hidden; }
+@media (max-width: 820px) { .walk-card { grid-template-columns: minmax(0, 1fr); } }
+.stage { position: relative; background: #0b0b0a; }
+.stage canvas { width: 100%; display: block; aspect-ratio: 1200 / 720; }
+.chip { position: absolute; left: 14px; top: 12px; background: rgba(0,0,0,.6); color: #f2f1ec; font-size: 13px; padding: 5px 11px; border-radius: 99px; }
+.side { padding: 22px 20px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.dist { font-size: 15px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.acc { font-size: 64px; font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.cap { font-size: 14px; font-weight: 600; margin-top: 4px; }
+.sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.walk-btn { align-self: flex-start; padding: 8px 16px; font-weight: 700; }
+.track { position: relative; height: 74px; margin: 18px 34px 6px; cursor: pointer; touch-action: none; outline: none; }
+.line { position: absolute; left: 0; right: 0; top: 40px; height: 2px; background: var(--line); border-radius: 1px; }
+.track:focus-visible .line { background: var(--accent); }
+.stop { position: absolute; top: 37px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--line); }
+.stop.on { background: var(--ink); }
+.tlab { position: absolute; top: 50px; transform: translateX(-50%); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.walker { position: absolute; top: 6px; margin-left: -15px; font-size: 28px; line-height: 1; transition: left .85s linear; pointer-events: none; }
+.walker span { display: inline-block; transform: scaleX(-1); }
+.walker.walking span { animation: trot .28s ease-in-out infinite alternate; }
+@keyframes trot { from { transform: scaleX(-1) translateY(0) rotate(0deg); } to { transform: scaleX(-1) translateY(-4px) rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) { .walker { transition: none; } .walker.walking span { animation: none; } }
+.foot { font-size: 12px; color: var(--muted); margin-top: 10px; }
+.seg { flex-wrap: wrap; max-width: 100%; }
+@media (max-width: 600px) {
+  h1 { font-size: 18px; }
+  .badge { display: none; }
+  .seg button { padding: 6px 9px; }
+  .track { margin: 14px 18px 6px; }
+  .tlab:nth-of-type(odd) { display: none; }
+  .acc { font-size: 52px; }
+}
+/* ---- tabs ---- */
+.tabs { display: flex; gap: 6px; margin: 8px 0 14px; flex-wrap: wrap; }
+.tabs button { padding: 8px 16px; border-radius: 10px; font-weight: 650; }
+.tabs button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+/* ---- stripe identity explorer ---- */
+:root { --pa: #2f7fd0; --pb: #d9731a; --sep-same: #3d8f5f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pa: #6fb0f0; --pb: #f0a050; --sep-same: #6cc48f; } }
+.ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.ctl select { max-width: 280px; }
+.muted { color: var(--muted); }
+.x-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 14px; }
+@media (max-width: 900px) { .x-grid { grid-template-columns: minmax(0, 1fr); } }
+.x-stage-card, .metric, .panel, .x-deck { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.x-stage-card { overflow: hidden; }
+.x-stage canvas { width: 100%; display: block; aspect-ratio: 1400 / 640; }
+.x-stage .lens { position: absolute; inset: 0; pointer-events: none; background: transparent; }
+.chip.right { left: auto; right: 14px; }
+#xChipA { border-left: 4px solid var(--pa); }
+#xChipB { border-left: 4px solid var(--pb); }
+.pair-badge { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #f2f1ec;
+  font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 99px; white-space: nowrap; max-width: 94%; overflow: hidden; text-overflow: ellipsis; }
+.x-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 14px; font-size: 12.5px; }
+.seg-lg button { padding: 7px 14px; font-weight: 600; }
+.x-vals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px 12px; font-size: 12.5px; }
+.x-vals > div { border-top: 3px solid var(--line); padding-top: 6px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+.x-vals span:nth-child(even) { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.x-perf { display: flex; flex-direction: column; gap: 12px; }
+.x-status { border-radius: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); }
+.x-status .s-label { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+.x-status .s-text { font-size: 15.5px; line-height: 1.4; margin-top: 4px; font-weight: 550; }
+.metric { padding: 12px 16px; }
+.m-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 700; }
+.m-tag { font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
+.m-row { display: flex; align-items: baseline; gap: 10px; margin-top: 2px; flex-wrap: wrap; }
+.m-val { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.m-ci, .m-def { font-size: 12px; color: var(--muted); }
+.m-def { margin-top: 4px; line-height: 1.4; }
+.x-deck { padding: 14px 18px; margin-top: 14px; }
+.x-deck-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.x-deck-dist { display: flex; align-items: center; gap: 12px; }
+.x-dist-big { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 96px; text-align: right; }
+.big-range { width: 100%; accent-color: var(--accent); height: 28px; margin: 6px 0 0; }
+.range-ticks { position: relative; height: 18px; font-size: 12px; color: var(--muted); }
+.range-ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.x-lower { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+@media (max-width: 900px) { .x-lower { grid-template-columns: minmax(0, 1fr); } }
+.panel { padding: 14px 16px; }
+.panel h2 { font-size: 15px; margin: 0 0 8px; }
+.panel h2 .muted { font-weight: 400; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+.strip-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 90px; gap: 10px; align-items: center; padding: 4px 0;
+  border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.strip-row:last-child { border-bottom: 0; }
+.strip-row .sv { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .strip-row { grid-template-columns: minmax(0, 1fr); } .strip-row .sv { text-align: left; } }
+svg text { fill: var(--muted); font-size: 11px; }
+/* ---- Pattern Lab ---- */
+.lab-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 14px; }
+@media (max-width: 900px) { .lab-grid { grid-template-columns: minmax(0, 1fr); } }
+.lab-stage { position: relative; background: #0b0b0a; border-radius: 14px; overflow: hidden; }
+.lab-stage canvas { width: 100%; display: block; aspect-ratio: 1200 / 720; }
+.lab-side { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex;
+  flex-direction: column; gap: 14px; }
+.lab-side .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lab-side input[type=range] { width: 100%; accent-color: var(--accent); }
+.lab-side .val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lab-side .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.res-main { font-size: 34px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.res-sub { font-size: 13.5px; font-weight: 600; margin-top: 2px; }
+.res-note { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.tag { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px;
+  border-radius: 99px; border: 1px solid var(--line); color: var(--muted); margin-bottom: 4px; }
+.tag.exp { border-color: var(--pb); color: var(--pb); }
+.res-block { border-top: 1px solid var(--line); padding-top: 10px; }
+.pending { border: 1px dashed var(--line); border-radius: 12px; padding: 14px; color: var(--muted); font-size: 13.5px; }
+.pending b { color: var(--ink); }
+.lab-bottom { display: grid; grid-template-columns: 1fr 1fr minmax(220px, 1.1fr); gap: 14px; margin-top: 14px; align-items: start; }
+@media (max-width: 900px) { .lab-bottom { grid-template-columns: 1fr 1fr; } .lab-explain { grid-column: 1 / -1; } }
+.lab-bottom figure { margin: 0; }
+.fig-box { background: #0b0b0a; border-radius: 12px; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.fig-box img { width: 92%; height: 92%; object-fit: contain; }
+.lab-bottom figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.lab-explain { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.45; }
+.seg button.pend { color: var(--muted); font-style: italic; }
+.seg button.pend.on { color: #fff; }
+.sci { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-top: 14px; padding: 10px 14px; font-size: 13px; }
+.sci summary { cursor: pointer; font-weight: 700; }
+.sci p, .sci li { line-height: 1.5; margin: 5px 0; }
+.spark text { fill: var(--muted); font-size: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">ZebraSight <span class="badge">internal · GZGC CC BY-NC-ND</span></div>
+  <div class="tabs"><button id="tabBtnH" class="on">Recognition horizon</button><button id="tabBtnX">Stripe identity explorer</button><button id="tabBtnL">Pattern Lab</button></div>
+  <section id="tabH">
+  <h1>Walk away: how far can a zebra still tell this individual from others?</h1>
+
+  <div class="controls">
+    <select id="zebra" aria-label="Zebra"></select>
+    <div class="seg" id="light"></div>
+    <div class="seg" id="region"></div>
+    <div class="seg" id="obs"></div>
+  </div>
+
+  <div class="walk-card">
+    <div class="stage"><canvas id="cv" width="1200" height="720"></canvas><div class="chip" id="chip"></div></div>
+    <div class="side">
+      <div class="dist" id="dist"></div>
+      <div class="acc" id="acc"></div>
+      <div class="cap">picks the right zebra out of a herd of 20</div>
+      <div class="sub" id="sub"></div>
+      <button id="play" class="walk-btn">▶ Walk away</button>
+    </div>
+  </div>
+
+  <div class="track" id="track" tabindex="0" role="slider" aria-label="Viewing distance">
+    <div class="line"></div>
+    <div id="stops"></div>
+    <div class="walker" id="walker"><span>🦓</span></div>
+  </div>
+
+  <div class="foot">Images: simulated zebra-eye view (horse-based eye parameters). Percentage: measured identification accuracy
+    of the selected computer observer across the study's 50 zebras, photos from different days; observers are computational
+    stand-ins, not zebra brains. <span id="status"></span></div>
+  </section>
+  <section id="tabX" hidden>
+    <h1>What makes one zebra visually distinguishable from another?</h1>
+    <div class="controls">
+      <label class="ctl">A <select id="xA" aria-label="Photo A (later day)"></select></label>
+      <label class="ctl">B <select id="xB" aria-label="Photo B (earliest day)"></select></label>
+      <button id="xSame">Same zebra, other day</button><button id="xDiff">Different zebra</button>
+    </div>
+
+    <div class="x-stage-card">
+      <div class="stage x-stage">
+        <canvas id="xCv" width="1400" height="640"></canvas>
+        <canvas id="xLens" width="1400" height="640" class="lens"></canvas>
+        <div class="chip" id="xChipA"></div>
+        <div class="chip right" id="xChipB"></div>
+        <div class="pair-badge" id="xBadge"></div>
+      </div>
+      <div class="x-bar">
+        <div class="seg seg-lg" id="xMode"></div>
+        <span class="muted" id="xNote"></span>
+      </div>
+    </div>
+
+    <div class="x-lower">
+      <div class="panel">
+        <h2>Stripe characteristics of these two photos</h2>
+        <div id="xStrips"></div>
+        <div class="legend"><span><i style="background:var(--pa)"></i>photo A</span><span><i style="background:var(--pb)"></i>photo B</span><span><i style="background:var(--muted);opacity:.5"></i>all <span id="xNAll"></span> flank photos of the 50 zebras</span></div>
+        <div class="note" id="xCharNote"></div>
+      </div>
+      <div class="panel">
+        <h2>What carries individual identity?</h2>
+        <svg id="xBars" viewBox="0 0 560 170" width="100%"></svg>
+        <div class="note" id="xIdNote"></div>
+      </div>
+    </div>
+  </section>
+  <section id="tabL" hidden>
+    <h1>Pattern Lab: can you change a zebra's identity?</h1>
+    <div class="controls">
+      <div class="seg seg-lg" id="lExp"></div>
+      <select id="lZebra" aria-label="Zebra"></select>
+      <div class="seg" id="lRegion"></div>
+      <div class="seg" id="lObs"></div>
+    </div>
+
+    <div class="lab-grid">
+      <div class="lab-stage">
+        <canvas id="lCv" width="1200" height="720"></canvas>
+        <div class="chip" id="lChip"></div>
+      </div>
+      <div class="lab-side">
+        <div id="lCtl"></div>
+        <div id="lRes"></div>
+      </div>
+    </div>
+
+    <div class="lab-bottom">
+      <figure><div class="fig-box"><img id="lImgA" alt=""></div><figcaption id="lCapA"></figcaption></figure>
+      <figure><div class="fig-box"><img id="lImgB" alt=""></div><figcaption id="lCapB"></figcaption></figure>
+      <div class="lab-explain" id="lExplain"></div>
+    </div>
+
+    <details class="sci">
+      <summary>Research information</summary>
+      <div id="lSci"></div>
+    </details>
+  </section>
+</main>
+<script src="data.js"></script>
+<script src="explorer.js"></script>
+<script src="lab.js"></script>
+<script>
+// Everything shown is stored study data: app_data textures (one per distance and light, stretched over one frame,
+// bilinear, as vr/export/README.md documents) and results.json identification accuracy (top-1, herd of 20, 95% CI).
+// Nothing is interpolated between the 16 measured distances.
+const D = window.DEMO;
+const $ = id => document.getElementById(id);
+const st = { zebra: D.zebras[0], cond: "c0", region: "flank", obs: D.observers.find(o => o.main).id, d: 0 };
+const fmtM = m => (m < 100 ? m.toFixed(1) : Math.round(m)) + " m";
+const pc = v => v == null ? "–" : Math.round(v * 100) + "%";
+const label = Object.fromEntries(D.conditions.map(c => [c.id, c.label]));
+const curve = () => D.curves.find(c => c.region === st.region && c.condition === st.cond && c.observer === st.obs);
+const KEY = { light: "cond", region: "region", obs: "obs" };
+
+D.zebras.forEach(z => $("zebra").add(new Option("Zebra " + z.replace("IBEIS_PZ_", "#"), z)));
+$("zebra").onchange = e => { st.zebra = e.target.value; preload(); render(); };
+function seg(el, items) {
+  items.forEach(([v, t]) => { const b = document.createElement("button"); b.textContent = t; b.dataset.v = v;
+    b.onclick = () => { st[KEY[el.id]] = v; preload(); render(); }; el.appendChild(b); });
+}
+seg($("light"), D.conditions.map(c => [c.id, c.label]));
+seg($("region"), [...D.regions.map(r => [r.id, r.label]), ["body", "Full body · results pending"]]);
+$("region").lastChild.classList.add("pend");
+seg($("obs"), D.observers.map(o => [o.id, o.main ? "MegaDescriptor" : "HotSpotter"]));
+$("status").textContent = D.status === "final" ? "" : "Status: " + D.status;
+
+const lpos = m => (Math.log(m) - Math.log(2)) / (Math.log(200) - Math.log(2)) * 100;
+$("stops").innerHTML = D.distances_m.map((m, i) => `<div class="stop" data-i="${i}" style="left:${lpos(m)}%"></div>`).join("")
+  + [2, 5, 10, 20, 50, 100, 200].map(m => `<div class="tlab" style="left:${lpos(m)}%">${m} m</div>`).join("");
+const setD = i => { st.d = Math.max(0, Math.min(15, i)); render(); };
+(() => {
+  const tr = $("track"), at = ev => { const r = tr.getBoundingClientRect(); return Math.round(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * 15); };
+  let drag = false;
+  tr.addEventListener("pointerdown", ev => { drag = true; tr.setPointerCapture(ev.pointerId); stop(); setD(at(ev)); });
+  tr.addEventListener("pointermove", ev => { if (drag && at(ev) !== st.d) setD(at(ev)); });
+  tr.addEventListener("pointerup", () => drag = false);
+  tr.addEventListener("keydown", ev => { if (ev.key === "ArrowRight") { stop(); setD(st.d + 1); } if (ev.key === "ArrowLeft") { stop(); setD(st.d - 1); } });
+})();
+
+let timer = null;
+function stop() { if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶ Walk away"; render(); } }
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (st.d >= 15) st.d = 0;
+  $("play").textContent = "❚❚ Pause";
+  timer = setInterval(() => { st.d++; render(); if (st.d >= 15) stop(); }, 900);
+  render();
+};
+
+const imgs = {};
+const load = src => imgs[src] || (imgs[src] = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }));
+const layers = () => (D.textures[st.zebra][st.region] || {})[st.cond] || [];
+function preload() { layers().forEach(load); }
+
+async function render() {
+  document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", st[KEY[b.parentElement.id]] === b.dataset.v));
+  $("zebra").value = st.zebra;
+  const m = D.distances_m[st.d];
+  if (st.region === "body") {                                            // results pending: show nothing measured
+    $("dist").textContent = `${fmtM(m)} · ${label[st.cond]}`;
+    $("acc").textContent = "Results pending"; $("acc").style.fontSize = "30px";
+    document.querySelector(".side .cap").hidden = true;
+    $("sub").textContent = "Full-body recognition results are being generated on the research cluster. No values are shown until they are validated.";
+    $("walker").style.left = lpos(m) + "%"; $("walker").classList.toggle("walking", !!timer);
+    document.querySelectorAll(".stop").forEach(s => s.classList.toggle("on", +s.dataset.i === st.d));
+    $("chip").textContent = "Full body · results pending";
+    const cv = $("cv"), ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0b0b0a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = "#cfcdc4"; ctx.textAlign = "center"; ctx.font = "600 32px system-ui";
+    ctx.fillText("Full body · results pending", cv.width / 2, cv.height / 2); ctx.textAlign = "start";
+    return;
+  }
+  document.querySelector(".side .cap").hidden = false;
+  $("acc").style.fontSize = "";
+  const p = curve().points[st.d];
+  $("dist").textContent = `${fmtM(m)} · ${label[st.cond]}`;
+  $("acc").textContent = pc(p.top1_n20);
+  $("sub").textContent = `chance ${pc(p.chance_n20)}` + (p.top1_n20_ci ? ` · 95% CI ${pc(p.top1_n20_ci[0])}–${pc(p.top1_n20_ci[1])}` : "");
+  $("walker").style.left = lpos(m) + "%";
+  $("walker").classList.toggle("walking", !!timer);
+  document.querySelectorAll(".stop").forEach(s => s.classList.toggle("on", +s.dataset.i === st.d));
+  $("track").setAttribute("aria-valuetext", fmtM(m));
+  $("chip").textContent = `What a zebra sees · ${st.region === "flank" ? "Flank" : "Face"} · ${fmtM(m)}`;
+  const want = layers()[st.d], im = await load(want);
+  if (want !== layers()[st.d]) return;                                   // a newer render took over
+  const cv = $("cv"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+  ctx.fillStyle = "#0b0b0a"; ctx.fillRect(0, 0, W, H);
+  if (!im) return;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+  const s = Math.min(W * .88 / im.width, H * .88 / im.height), w = im.width * s, h = im.height * s;
+  ctx.drawImage(im, (W - w) / 2, (H - h) / 2, w, h);
+}
+preload();
+render();
+// tabs
+function showTab(t) {
+  ["H", "X", "L"].forEach(k => { $("tabBtn" + k).classList.toggle("on", t === k); $("tab" + k).hidden = t !== k; });
+  if (t !== "L" && window.stopLab) window.stopLab();
+  if (t === "X" && window.renderExplorer) window.renderExplorer();
+  else if (t === "L" && window.renderLab) window.renderLab();
+  else render();
+}
+$("tabBtnH").onclick = () => showTab("H");
+$("tabBtnX").onclick = () => { stop(); showTab("X"); };
+$("tabBtnL").onclick = () => { stop(); showTab("L"); };
+if (!window.EX) $("tabBtnX").hidden = true;
+</script>
+<script>
+// ---- Stripe identity explorer (window.EX from explorer.js) ----
+// Minimal: two original photos; A = stripe arrangement (HotSpotter matches, recomputed with the study's rules,
+// counts checked equal to the official table), B = stripe characteristics (the study's stripe map and stored
+// F1-F10 values, measured at 2 m clear day); the study's arrangement-vs-characteristics result at 2 m.
+(() => {
+  const X = window.EX;
+  if (!X) return;
+  const $ = id => document.getElementById(id);
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const short = z => z.replace("IBEIS_PZ_", "#");
+  const PH = Object.fromEntries(X.photos.map(p => [p.key, p]));
+  const xs = { mode: "arr" };
+  xs.A = X.pool_q.find(k => PH[k].zebra === X.demo_zebra) || X.pool_q[0];
+  xs.B = X.pool_g.find(k => PH[k].zebra === PH[xs.A].zebra) || X.pool_g[0];
+  const MC = "c0", MD = 0;                                                // characteristics: measured at 2 m, clear day
+
+  const phLabel = k => `Zebra ${short(PH[k].zebra)} · ${PH[k].split === "query" ? "later day" : "earliest day"} (${PH[k].date})`;
+  X.pool_q.forEach(k => $("xA").add(new Option(phLabel(k), k)));
+  X.pool_g.forEach(k => $("xB").add(new Option(phLabel(k), k)));
+  $("xA").onchange = e => { xs.A = e.target.value; render(); };
+  $("xB").onchange = e => { xs.B = e.target.value; render(); };
+  const cycle = (list, cur) => list[(list.indexOf(cur) + 1) % list.length];
+  $("xSame").onclick = () => { const z = PH[xs.A].zebra, c = X.pool_g.filter(k => PH[k].zebra === z); xs.B = c.includes(xs.B) ? cycle(c, xs.B) : c[0]; render(); };
+  $("xDiff").onclick = () => { const z = PH[xs.A].zebra, c = X.pool_g.filter(k => PH[k].zebra !== z); xs.B = c.includes(xs.B) ? cycle(c, xs.B) : c[0]; render(); };
+  [["arr", "A · Stripe arrangement"], ["char", "B · Stripe characteristics"]].forEach(([v, t]) => {
+    const b = document.createElement("button"); b.textContent = t; b.dataset.v = v; b.onclick = () => { xs.mode = v; render(); }; $("xMode").appendChild(b); });
+  $("xNAll").textContent = X.feat_keys.length;
+
+  const pad2 = d => String(d).padStart(2, "0");
+  const cache = {};
+  const load = src => cache[src] || (cache[src] = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }));
+  const FEATS = [["width", "Stripe width", "cm"], ["spacing", "Stripe spacing", "cm (period)"],
+                 ["junctions", "Junctions", "per 100 cm²"], ["black", "Black fraction", ""]];
+  const fmtF = (v, f) => v == null ? "–" : f === "black" ? v.toFixed(2) : v.toFixed(f === "junctions" ? 2 : 1);
+
+  let geom = null;
+  async function drawStage() {
+    const cv = $("xCv"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height, gap = 24, bw = (W - gap) / 2;
+    const useMap = xs.mode === "char";
+    const srcA = useMap ? `img/${xs.A}_${MC}_d${pad2(MD)}.png` : `img/${xs.A}_orig.png`;
+    const srcB = useMap ? `img/${xs.B}_${MC}_d${pad2(MD)}.png` : `img/${xs.B}_orig.png`;
+    const key = [srcA, srcB].join();
+    const [ia, ib, ma, mb] = await Promise.all([load(srcA), load(srcB),
+      useMap ? load(`map/${xs.A}_${MC}_d${pad2(MD)}.png`) : null, useMap ? load(`map/${xs.B}_${MC}_d${pad2(MD)}.png`) : null]);
+    const now = xs.mode === "char" ? [`img/${xs.A}_${MC}_d${pad2(MD)}.png`, `img/${xs.B}_${MC}_d${pad2(MD)}.png`].join() : [`img/${xs.A}_orig.png`, `img/${xs.B}_orig.png`].join();
+    if (key !== now) return;                                              // a newer render took over
+    ctx.fillStyle = "#0b0b0a"; ctx.fillRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+    const place = (im, x0) => { if (!im) return null; const s = Math.min(bw * .96 / im.width, H * .84 / im.height);
+      const w = im.width * s, h = im.height * s, x = x0 + (bw - w) / 2, y = (H - h) / 2 + 6; ctx.drawImage(im, x, y, w, h); return { im, x, y, s, w, h }; };
+    const A = place(ia, 0), B = place(ib, bw + gap);
+    geom = { A, B };
+    if (!A || !B) return;
+    if (!useMap) {
+      const pr = X.pairs.orig[`${xs.A}|${xs.B}`];
+      if (!pr) return;
+      ctx.lineWidth = 2.2; ctx.strokeStyle = "rgba(255,214,74,.9)"; ctx.fillStyle = "rgba(255,214,74,1)";
+      pr.q_pts.forEach((q, i) => { const g = pr.g_pts[i];
+        const x1 = A.x + (q[0] + .5) * A.s, y1 = A.y + (q[1] + .5) * A.s, x2 = B.x + (g[0] + .5) * B.s, y2 = B.y + (g[1] + .5) * B.s;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x1, y1, 5, 0, 7); ctx.arc(x2, y2, 5, 0, 7); ctx.fill(); });
+    } else {
+      const maps = X.maps[MC][MD];
+      [[A, ma, xs.A], [B, mb, xs.B]].forEach(([G, m, k]) => {
+        if (!m) return;
+        ctx.save(); ctx.globalAlpha = .62; ctx.imageSmoothingEnabled = false; ctx.drawImage(m, G.x, G.y, G.w, G.h); ctx.restore();
+        const info = maps[k] || {};
+        (info.junctions || []).forEach(([r, c]) => { ctx.fillStyle = "#3be0ff"; ctx.beginPath(); ctx.arc(G.x + (c + .5) * G.s, G.y + (r + .5) * G.s, 4.5, 0, 7); ctx.fill(); });
+        (info.endings || []).forEach(([r, c]) => { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(G.x + (c + .5) * G.s, G.y + (r + .5) * G.s, 4.5, 0, 7); ctx.stroke(); });
+      });
+    }
+  }
+
+  function lens(ev) {
+    const cv = $("xLens"), ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!geom || !ev) return;
+    const r = cv.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * cv.width, y = (ev.clientY - r.top) / r.height * cv.height;
+    const G = [geom.A, geom.B].find(g => g && x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h);
+    if (!G) return;
+    const R = 120, Z = 3, sx = (x - G.x) / G.s, sy = (y - G.y) / G.s, half = R / (Z * G.s);
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.clip();
+    ctx.fillStyle = "#0b0b0a"; ctx.fillRect(x - R, y - R, 2 * R, 2 * R);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+    ctx.drawImage(G.im, sx - half, sy - half, 2 * half, 2 * half, x - R, y - R, 2 * R, 2 * R);
+    ctx.restore();
+    ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.stroke();
+  }
+  $("xCv").parentElement.addEventListener("mousemove", lens);
+  $("xCv").parentElement.addEventListener("mouseleave", () => lens(null));
+
+  function drawStrips() {
+    const F = X.features[MC] && X.features[MC][MD];
+    const ia = X.feat_keys.indexOf(xs.A), ib = X.feat_keys.indexOf(xs.B), za = PH[xs.A].zebra;
+    $("xStrips").innerHTML = FEATS.map(([f, name, unit]) => {
+      const v = F ? F[f] : [], fin = v.filter(x => x != null);
+      if (!fin.length) return "";
+      const lo = Math.min(...fin), hi = Math.max(...fin), pad = (hi - lo) * .05 || 1, X0 = lo - pad, X1 = hi + pad;
+      const px = x => 6 + (x - X0) / (X1 - X0) * 388;
+      let s = "";
+      v.forEach((x, i) => { if (x == null || i === ia || i === ib) return;
+        const jy = 14 + ((i * 7919) % 17);
+        s += X.feat_zebra[i] === za ? `<circle cx="${px(x)}" cy="${jy}" r="4" fill="none" stroke="${css("--pa")}" stroke-width="1.5"/>`
+                                    : `<circle cx="${px(x)}" cy="${jy}" r="3" fill="${css("--muted")}" opacity=".4"/>`; });
+      [[ib, "--pb"], [ia, "--pa"]].forEach(([i, col]) => { if (i >= 0 && v[i] != null) s += `<circle cx="${px(v[i])}" cy="22" r="7" fill="${css(col)}" stroke="${css("--panel")}" stroke-width="2"/>`; });
+      return `<div class="strip-row"><span><b>${name}</b><br><span class="muted">${unit}</span></span><svg viewBox="0 0 400 44" width="100%">${s}</svg>
+        <span class="sv"><span style="color:var(--pa);font-weight:700">A ${fmtF(ia >= 0 ? v[ia] : null, f)}</span><br><span style="color:var(--pb);font-weight:700">B ${fmtF(ib >= 0 ? v[ib] : null, f)}</span></span></div>`;
+    }).join("");
+    $("xCharNote").textContent = "The study's stored measurements (zebra-eye view at 2 m, clear day). Hollow blue rings = other photos of zebra A. Different zebras share very similar values, so these general characteristics separate individuals poorly. Junction counts are reliable only from about 10 m.";
+  }
+
+  function drawBars() {
+    // the study's headline comparison: flank, 2 m, clear day (results.json statistics_vs_positions)
+    const svg = $("xBars"), W = 560, l = 230, r = 40, rowH = 34, t = 12;
+    const at2 = (X.stats_vs_pos.at_2m_c0 || []).filter(z => z.region === "flank");
+    const rows = [["megadesc", "arr", "MegaDescriptor"], ["hotspotter", "arr", "HotSpotter"],
+                  ["interpretable_nn", "char", "F1–F10 statistics"], ["spatial_nn", "char", "F1–F10 + coarse layout"]];
+    const Xp = v => l + (Math.max(.4, Math.min(1, v)) - .4) / .6 * (W - l - r);
+    const H = t + rows.length * rowH + 30;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    let s = `<line x1="${Xp(.5)}" x2="${Xp(.5)}" y1="${t - 4}" y2="${H - 22}" stroke="${css("--muted")}" stroke-dasharray="4 4"/>
+      <text x="${Xp(.5)}" y="${H - 6}" text-anchor="middle">0.5 chance</text><text x="${W - r}" y="${H - 6}" text-anchor="end">1.0 AUC</text>`;
+    rows.forEach(([o, kind, name], k) => {
+      const p = at2.find(z => z.observer === o), y = t + k * rowH, col = kind === "arr" ? css("--accent") : css("--muted");
+      s += `<text x="0" y="${y + 18}" style="font-size:12.5px;fill:${css("--ink")}">${kind === "arr" ? "Arrangement · " : "Characteristics · "}${name}</text>`;
+      if (!p) return;
+      s += `<rect x="${l}" y="${y + 6}" width="${Xp(p.auc) - l}" height="18" rx="4" fill="${col}" opacity="${kind === "arr" ? .85 : .5}"/>`;
+      if (p.auc_ci) s += `<line x1="${Xp(p.auc_ci[0])}" x2="${Xp(p.auc_ci[1])}" y1="${y + 15}" y2="${y + 15}" stroke="${css("--ink")}" stroke-width="2"/>`;
+      s += `<text x="${Xp(Math.max(p.auc, p.auc_ci ? p.auc_ci[1] : p.auc)) + 6}" y="${y + 19}" style="font-size:12px;font-weight:700;fill:${css("--ink")}">${p.auc.toFixed(2)}</text>`;
+    });
+    svg.innerHTML = s;
+    const sd = (X.stats_vs_pos.same_day_pairs_auc || []).find(z => z.region === "flank" && z.observer === "interpretable_nn");
+    $("xIdNote").innerHTML = "Study result, flank, 2 m, clear day, all 50 zebras, photos from different days. Where the stripes are (<b>arrangement</b>) separates individuals; general <b>characteristics</b> stay near chance."
+      + (sd ? ` They are not empty of information: between photos from the same day they reach ${sd.auc.toFixed(2)}, but that does not carry over to another day.` : "")
+      + " AUC: 0.5 = chance, 1 = perfect separation (not a % correct); lines = 95% CI.";
+  }
+
+  async function render() {
+    [...$("xMode").children].forEach(b => b.classList.toggle("on", b.dataset.v === xs.mode));
+    $("xA").value = xs.A; $("xB").value = xs.B;
+    const same = PH[xs.A].zebra === PH[xs.B].zebra, pr = X.pairs.orig[`${xs.A}|${xs.B}`];
+    $("xChipA").textContent = "A · " + phLabel(xs.A);
+    $("xChipB").textContent = "B · " + phLabel(xs.B);
+    $("xBadge").textContent = same ? "Same zebra, different days" : "Two different zebras";
+    $("xNote").textContent = xs.mode === "arr"
+      ? `${pr ? pr.hs : 0} matching stripe features (yellow): the same local stripe patterns in the same arrangement in both photos. Hover to magnify.`
+      : "The study's stripe map (zebra-eye view at 2 m): black stripes (red), centre-lines (yellow), junctions (● cyan), endings (○ white).";
+    drawStrips(); drawBars();
+    await drawStage();
+  }
+  window.renderExplorer = render;
+})();
+</script>
+<script>
+// ---- Pattern Lab (window.LAB from lab.js; science in zebrasight/patternlab.py) ----
+// Exp 1: like-with-like distance measurements = the study's stored inference for this exact pair. The full-body
+// image in the scene is a visual only. Exp 2: every slider step is a real modified photo with real inference.
+// Full body: results pending, nothing shown. Exp 3: needs horse photos (none in the dataset).
+(() => {
+  const L = window.LAB;
+  if (!L) { const b = document.getElementById("tabBtnL"); if (b) b.hidden = true; return; }
+  const $ = id => document.getElementById(id);
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const fmtM = m => (m < 100 ? m.toFixed(1) : Math.round(m)) + " m";
+  const short = z => z.replace("IBEIS_PZ_", "#");
+  const pc = v => v == null ? "–" : Math.round(v * 100) + "%";
+  const lab = Object.fromEntries(L.conditions.map(c => [c.id, c.label]));
+  const ls = { exp: "move", zebra: L.zebras[0], region: "flank", obs: "megadesc", cond: "c0", d: 0, ctl: "arrangement", step: {} };
+  Object.keys(L.controls).forEach(k => ls.step[k] = L.controls[k].findIndex(v => (k === "contrast" || k === "spacing") ? v === 1 : v === 0));
+
+  let SEGS = [];
+  function seg(el, items, key, cls = {}) {
+    SEGS = SEGS.filter(([e]) => e.isConnected && e !== el);
+    SEGS.push([el, key]); el.innerHTML = "";
+    items.forEach(([v, t]) => { const b = document.createElement("button"); b.textContent = t; b.dataset.v = v;
+      if (cls[v]) b.className = cls[v]; b.onclick = () => { ls[key] = v; stopWalk(); render(); }; el.appendChild(b); });
+  }
+  seg($("lExp"), [["move", "1 · Move away"], ["stripes", "2 · Change the stripes"], ["fool", "3 · Fool the observer"]], "exp");
+  seg($("lRegion"), [...L.regions.map(r => [r, r === "flank" ? "Flank" : "Face"]), ["body", "Full body · results pending"]], "region", { body: "pend" });
+  seg($("lObs"), [["megadesc", "MegaDescriptor"], ["hotspotter", "HotSpotter"]], "obs");
+  L.zebras.forEach(z => $("lZebra").add(new Option("Zebra " + short(z), z)));
+  $("lZebra").onchange = e => { ls.zebra = e.target.value; render(); };
+
+  const cache = {};
+  const load = src => cache[src] || (cache[src] = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }));
+  const study = (region, cond, obs) => (L.study.find(s => s.region === region && s.condition === cond && s.observer === obs) || {}).points;
+  const obsName = o => o === "megadesc" ? "MegaDescriptor" : "HotSpotter";
+
+  // ---- walk (experiment 1)
+  let timer = null, zShow = L.distances_m[0], anim = null;
+  function stopWalk() { if (timer) { clearInterval(timer); timer = null; } const b = $("lPlay"); if (b) b.textContent = "▶ Walk away"; }
+  function startWalk() {
+    if (ls.d >= 15) ls.d = 0;
+    timer = setInterval(() => { ls.d++; render(); if (ls.d >= 15) stopWalk(); }, 1100);
+    render();
+  }
+
+  // ---- scene (2D perspective: ground, horizon, zebra scaled by 1/distance) -- visual only
+  async function drawScene() {
+    const cv = $("lCv"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+    const hz = H * 0.36, f = H * 0.8, camH = 1.5;
+    const body = L.zebra[ls.zebra].body, src = body.img[ls.cond][ls.d], im = await load(src);
+    const target = L.distances_m[ls.d];
+    cancelAnimationFrame(anim);
+    const frame = () => {
+      zShow = zShow + (target - zShow) * 0.18;
+      if (Math.abs(target - zShow) < 0.01 * target) zShow = target;
+      ctx.fillStyle = "#0e0e0d"; ctx.fillRect(0, 0, W, H);
+      const g = ctx.createLinearGradient(0, hz, 0, H); g.addColorStop(0, "#26251f"); g.addColorStop(1, "#4a4636");
+      ctx.fillStyle = g; ctx.fillRect(0, hz, W, H - hz);
+      ctx.strokeStyle = "rgba(255,255,255,.08)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, hz); ctx.lineTo(W, hz); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.font = "16px system-ui";
+      let lastY = Infinity;
+      [2, 5, 10, 20, 50, 100, 200].forEach(m => { const y = hz + f * camH / m; if (y < H && lastY - y > 16) { lastY = y;
+        ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.moveTo(W * .08, y); ctx.lineTo(W * .92, y); ctx.stroke();
+        ctx.fillText(m + " m", W * .93, y + 5); } });
+      for (let k = -6; k <= 6; k++) { ctx.strokeStyle = "rgba(255,255,255,.05)"; ctx.beginPath(); ctx.moveTo(W / 2, hz); ctx.lineTo(W / 2 + k * W * .22, H); ctx.stroke(); }
+      if (im) {
+        const hpx = f * body.height_m / zShow, wpx = hpx * im.width / im.height, yb = hz + f * camH / zShow;
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+        ctx.drawImage(im, W / 2 - wpx / 2, yb - hpx, wpx, hpx);
+        if (hpx < 18) { ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(W / 2, yb - hpx / 2, 22, 0, 7); ctx.stroke(); }
+      }
+      if (zShow !== target) anim = requestAnimationFrame(frame);
+    };
+    frame();
+    $("lChip").textContent = `Zebra-eye view · ${fmtM(target)} · ${lab[ls.cond]} · scene is a visual only`;
+  }
+
+  function drawImageCanvas(src, note) {
+    const cv = $("lCv"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+    cancelAnimationFrame(anim);
+    ctx.fillStyle = "#0b0b0a"; ctx.fillRect(0, 0, W, H);
+    $("lChip").textContent = note;
+    if (!src) return;
+    load(src).then(im => { if (!im) return; ctx.imageSmoothingEnabled = true;
+      const s = Math.min(W * .9 / im.width, H * .9 / im.height), w = im.width * s, h = im.height * s; ctx.drawImage(im, (W - w) / 2, (H - h) / 2, w, h); });
+  }
+  function drawMessage(lines) {
+    const cv = $("lCv"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+    cancelAnimationFrame(anim);
+    ctx.fillStyle = "#0b0b0a"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#cfcdc4"; ctx.font = "600 30px system-ui"; ctx.textAlign = "center";
+    lines.forEach((t, i) => { ctx.font = i ? "22px system-ui" : "600 30px system-ui"; ctx.fillText(t, W / 2, H / 2 - 20 + i * 40); });
+    ctx.textAlign = "start"; $("lChip").textContent = "";
+  }
+
+  const noInfo = r => r.tied_with >= r.n_known - 1;
+  const rankText = r => noInfo(r) ? "No information" : r.rank === 1 && !r.tied_with ? `Ranked #1 of ${r.n_known}` : r.rank === 1 ? `Tied for #1 with ${r.tied_with} other zebra${r.tied_with > 1 ? "s" : ""}` : `Ranked #${r.rank} of ${r.n_known}`;
+  const verdict = r => noInfo(r) ? "Every known zebra scores the same, so this zebra cannot be identified" : r.rank === 1 && !r.tied_with ? "Still identified as this zebra" : r.rank === 1 ? "Can't single it out (tie)" : "No longer identified as this zebra";
+  const scoreText = (o, v) => v == null ? "–" : o === "megadesc" ? v.toFixed(3) : `${v} matching stripe features`;
+
+  function pendingHTML(what) {
+    return `<div class="pending"><b>Full body · results pending.</b><br>Full-body ${what} are still being generated on the research cluster. Nothing is shown until the validated results are added; flank or face values are not used as a stand-in.</div>`;
+  }
+
+  // ---- experiment 1
+  function renderMove() {
+    $("lCtl").innerHTML = `<div><div class="lbl">Light</div><div class="seg" id="lLight"></div></div>
+      <div><div class="lbl">Distance</div><div class="row"><span class="val" id="lDistV"></span><button id="lPlay">${timer ? "❚❚ Pause" : "▶ Walk away"}</button></div>
+      <input type="range" id="lDist" min="0" max="15" step="1" value="${ls.d}" aria-label="Distance"></div>`;
+    seg($("lLight"), L.conditions.map(c => [c.id, c.label]), "cond");
+    $("lDistV").textContent = fmtM(L.distances_m[ls.d]);
+    $("lDist").oninput = e => { ls.d = +e.target.value; stopWalk(); render(); };
+    $("lPlay").onclick = () => { if (timer) { stopWalk(); render(); } else { $("lPlay").textContent = "❚❚ Pause"; startWalk(); } };
+    drawScene();
+    if (ls.region === "body") {
+      $("lRes").innerHTML = pendingHTML("recognition measurements");
+      ["A", "B"].forEach(k => { $("lImg" + k).removeAttribute("src"); $("lCap" + k).textContent = ""; });
+      $("lExplain").textContent = "The scene shows the full-body zebra-eye image as a visual only.";
+      return;
+    }
+    const e1 = L.zebra[ls.zebra].exp1[ls.region], m = e1.measure[ls.cond][ls.d][ls.obs], sp = study(ls.region, ls.cond, ls.obs)[ls.d];
+    $("lRes").innerHTML = m ? `<div><span class="tag exp">this photo pair</span>
+        <div class="res-main">${rankText(m)}</div><div class="res-sub">${verdict(m)} among the known zebras</div>
+        <div class="res-note">${obsName(ls.obs)} score against its earliest-day reference photo: <b>${scoreText(ls.obs, m.ref_score)}</b>. Both photos seen through the zebra eye at ${fmtM(L.distances_m[ls.d])}, as in the study.</div></div>
+      <div class="res-block"><span class="tag">study result · all 50 zebras</span>
+        <div class="res-sub">Identification accuracy: ${pc(sp.top1_n20)} <span class="res-note">(herd of 20; 95% CI ${pc(sp.top1_n20_ci[0])}–${pc(sp.top1_n20_ci[1])}; chance ${pc(sp.chance_n20)})</span></div>
+        <div class="res-sub">AUC: ${sp.auc.toFixed(2)} <span class="res-note">(separability of same vs different zebras; 0.5 = chance; not a % correct)</span></div></div>`
+      : `<div class="pending">The zebra-eye image is too small for ${obsName(ls.obs)} at this distance: no score.</div>`;
+    $("lImgA").src = e1.img[ls.cond].ref[ls.d]; $("lCapA").textContent = `Reference: earliest day (${e1.ref_date}), zebra-eye view at ${fmtM(L.distances_m[ls.d])}`;
+    $("lImgB").src = e1.img[ls.cond].query[ls.d]; $("lCapB").textContent = `Same zebra, later day (${e1.query_date}), same distance and light`;
+    $("lExplain").innerHTML = "As the zebra moves away, the eye resolves fewer stripe details. The observer compares the two zebra-eye views of the same animal, photographed on different days, and ranks all known zebras. <b>Rank</b> and <b>score</b> are for this one pair; the <b>study result</b> is measured over all 50 zebras. These are computer observers, not a zebra's own recognition.";
+  }
+
+  // ---- experiment 2
+  const CTL = {
+    thickness: { name: "Stripe thickness", fmt: v => v === 0 ? "unchanged" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}% ${v > 0 ? "thicker" : "thinner"} dark stripes` },
+    contrast: { name: "Black-white contrast", fmt: v => v === 1 ? "unchanged" : `× ${v.toFixed(1)} contrast` },
+    arrangement: { name: "Stripe arrangement", fmt: v => v === 0 ? "unchanged" : `stripes shifted ${v} stripe period${v === 1 ? "" : "s"} (smooth, random)` },
+    spacing: { name: "Stripe spacing / density", fmt: v => v === 1 ? "unchanged" : `spacing × ${v.toFixed(2)} (${v > 1 ? "sparser" : "denser"})` },
+  };
+  const EXPLAIN = {
+    thickness: "Thickens or thins the black stripes while keeping each stripe's centre in place (a change of style, not position).",
+    contrast: "Fades or strengthens the difference between black and white, without moving any stripe.",
+    arrangement: "Moves the stripes by a smooth random displacement: the general look stays zebra-like, but the exact positions change.",
+    spacing: "Spreads the stripes apart or packs them closer together inside the same outline.",
+  };
+  function renderStripes() {
+    if (ls.region === "body") {
+      $("lCtl").innerHTML = ""; $("lRes").innerHTML = pendingHTML("photos with stripe modifications and their observer results");
+      drawMessage(["Full body · results pending", "Choose Flank or Face for this experiment"]);
+      ["A", "B"].forEach(k => { $("lImg" + k).removeAttribute("src"); $("lCap" + k).textContent = ""; }); $("lExplain").textContent = "";
+      return;
+    }
+    const e2 = L.zebra[ls.zebra].exp2[ls.region], vals = L.controls[ls.ctl], i = ls.step[ls.ctl], s = e2.steps[ls.ctl][i], r = s[ls.obs];
+    $("lCtl").innerHTML = `<div><div class="lbl">Change one property</div><div class="seg" id="lCtlSeg"></div></div>
+      <div><div class="lbl">${CTL[ls.ctl].name}</div><div class="val" style="font-size:16px" id="lStepV"></div>
+      <input type="range" id="lStep" min="0" max="${vals.length - 1}" step="1" value="${i}" aria-label="${CTL[ls.ctl].name}"></div>`;
+    seg($("lCtlSeg"), Object.keys(CTL).map(k => [k, CTL[k].name.split(" /")[0].replace("Black-white ", "").replace("Stripe ", "")]), "ctl");
+    $("lStepV").textContent = CTL[ls.ctl].fmt(vals[i]);
+    $("lStep").oninput = e => { ls.step[ls.ctl] = +e.target.value; render(); };
+    const self = s.self[ls.obs];
+    // tiny trace: rank of the true zebra across this control's steps (real inference at each step)
+    const ranks = e2.steps[ls.ctl].map(t => t[ls.obs].rank), W = 260, Hh = 54, X = k => 8 + k / (vals.length - 1) * (W - 16), Y = v => 6 + (Math.min(v, 50) - 1) / 49 * (Hh - 18);
+    const spark = `<svg class="spark" viewBox="0 0 ${W} ${Hh}" width="100%"><line x1="8" x2="${W - 8}" y1="${Y(1)}" y2="${Y(1)}" stroke="${css("--line")}"/>
+      <path d="${ranks.map((v, k) => (k ? "L" : "M") + X(k) + "," + Y(v)).join("")}" fill="none" stroke="${css("--accent")}" stroke-width="2"/>
+      ${ranks.map((v, k) => `<circle cx="${X(k)}" cy="${Y(v)}" r="${k === i ? 5 : 3}" fill="${k === i ? css("--ink") : css("--accent")}"/>`).join("")}
+      <text x="8" y="${Hh - 2}">rank #1 at the top line · lower = worse</text></svg>`;
+    $("lRes").innerHTML = `<div><span class="tag exp">experimental result · this photo, real inference</span>
+        <div class="res-main">${rankText(r)}</div><div class="res-sub">${verdict(r)} among ${r.n_known} known zebras (${obsName(ls.obs)})</div>
+        <div class="res-note">${s.neutral ? "Unmodified photo." : `Similarity to the unmodified photo: <b>${ls.obs === "megadesc" ? self.toFixed(3) : self + " matching stripe features"}</b>.`}
+        Score for the true zebra: ${scoreText(ls.obs, r.true_score)}.</div></div>
+      <div class="res-block"><div class="lbl">Rank across all steps of this change</div>${spark}</div>`;
+    drawImageCanvas(s.img, `${s.neutral ? "Unmodified" : "Modified"} photo · ${CTL[ls.ctl].fmt(vals[i])}`);
+    $("lImgA").src = e2.original; $("lCapA").textContent = "Original (later-day photo, unmodified)";
+    $("lImgB").src = s.img; $("lCapB").textContent = `Modified: ${CTL[ls.ctl].fmt(vals[i])}`;
+    $("lExplain").innerHTML = `${EXPLAIN[ls.ctl]} The modified photo is compared with the earliest-day photos of all known zebras; the rank shows whether the observer still picks this zebra. A change in this computer score is not a change in the animal's biological identity.`;
+  }
+
+  function renderFool() {
+    $("lCtl").innerHTML = "";
+    $("lRes").innerHTML = `<div class="pending"><b>Needs additional images.</b><br>The study dataset contains only plains zebras and giraffes, so there are no horse photos to test.
+      To run this experiment we need side-view horse photos with a licence that allows use. They would get a body mask, then the same observers would compare
+      a normal zebra, a zebra with modified stripes (Experiment 2) and a horse with zebra-like stripes. That would show whether the observer responds to individual identity or only to general stripe-likeness.
+      It would describe the computer observer only, not whether a real zebra would be fooled.</div>`;
+    drawMessage(["Experiment 3 needs horse photos", "None are in the study dataset"]);
+    ["A", "B"].forEach(k => { $("lImg" + k).removeAttribute("src"); $("lCap" + k).textContent = ""; }); $("lExplain").textContent = "";
+  }
+
+  function renderSci() {
+    const ch = Object.entries(L.checks).map(([k, v]) => `${k}: embedding cosine to stored ${v.megadesc_cosine_to_stored}, HotSpotter mismatches ${v.hotspotter_mismatches}`).join("; ");
+    $("lSci").innerHTML = `<p><b>Observers.</b> MegaDescriptor-L-384 (zero-shot; its training data include GZGC, so scores may be optimistic) and a HotSpotter-style matcher (SIFT, ratio test, RANSAC), with exactly the study's preprocessing. Computational observers, not zebra brains.</p>
+      <p><b>Validation.</b> The unmodified photos reproduce the study's stored scores exactly: ${ch}.</p>
+      <p><b>Experiment 1.</b> Scores are the study's stored inference outputs for this exact photo pair, both seen through the zebra eye at the same distance and light (like with like). The rank counts known zebras whose best earliest-day photo scores strictly higher; ties are reported. The study result is measured over all 50 zebras. The full-body scene image is a visual only.</p>
+      <p><b>Experiment 2.</b> Modifications act inside the region mask only, on the full-resolution original crop, each colour channel alike: thickness and contrast = generators.morph_style; arrangement = generators.morph_positional (smooth random field, seed ${0}); spacing = generators.coat_rescale (new, unit-tested; very dense settings would need coat from beyond the outline, so the range stops at 0.85). Each slider step is a separately computed photo with real inference (one change at a time; steps in configs/positional.yaml pattern_lab). Identification is closed-set among the 50 known zebras; no unknown-zebra threshold is applied.</p>
+      <p><b>Full body.</b> Results pending; no values are shown. <b>Experiment 3.</b> Needs horse photos.</p>`;
+  }
+
+  async function render() {
+    SEGS.forEach(([el, key]) => [...el.children].forEach(b => b.classList.toggle("on", b.dataset.v === ls[key])));
+    $("lZebra").value = ls.zebra;
+    if (ls.exp === "move") renderMove(); else if (ls.exp === "stripes") renderStripes(); else renderFool();
+    SEGS.forEach(([el, key]) => [...el.children].forEach(b => b.classList.toggle("on", b.dataset.v === ls[key])));
+    renderSci();
+  }
+  window.renderLab = render;
+  window.stopLab = stopWalk;
+})();
+</script>
+</body>
+</html>
